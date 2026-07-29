@@ -8,6 +8,93 @@ const CLOUD_MODE = !SUPABASE_URL.includes('COLE_AQUI') && !SUPABASE_KEY.includes
 const db = CLOUD_MODE ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 // ============================================================
+// AUTENTICAÇÃO
+// ============================================================
+let currentUser = null;   // sessão atual (null = deslogado)
+let authMode = 'login';   // 'login' | 'signup'
+let accountsExist = true; // otimista até checarmos; evita travar login de quem já usa o app caso a checagem falhe
+
+function traduzirErroAuth(msg) {
+  const m = (msg || '').toLowerCase();
+  if (m.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (m.includes('user already registered')) return 'Já existe uma conta com esse e-mail.';
+  if (m.includes('password should be at least')) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (m.includes('email not confirmed')) return 'Confirme seu e-mail antes de entrar (verifique sua caixa de entrada).';
+  if (m.includes('unable to validate email')) return 'E-mail inválido.';
+  return msg;
+}
+
+async function checkAccountsExist() {
+  if (!CLOUD_MODE) return true;
+  const { data, error } = await db.rpc('any_user_exists');
+  if (error) {
+    // Função ainda não criada no Supabase — assume que já existem contas,
+    // para nunca esconder o login de quem já tem uma conta por falta dessa função.
+    return true;
+  }
+  return !!data;
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab-btn').forEach(btn => {
+    const active = btn.dataset.mode === mode;
+    btn.classList.toggle('bg-white', active);
+    btn.classList.toggle('shadow-sm', active);
+    btn.classList.toggle('text-ink', active);
+    btn.classList.toggle('text-muted', !active);
+  });
+  document.getElementById('authNameField').classList.toggle('hidden', mode !== 'signup');
+  document.getElementById('authTabs').classList.toggle('hidden', !accountsExist);
+  document.getElementById('authFirstRunNote').classList.toggle('hidden', accountsExist);
+  const submitBtn = document.querySelector('#authForm button[type="submit"]');
+  submitBtn.textContent = mode === 'signup' ? 'Criar conta' : 'Entrar';
+  document.getElementById('authError').classList.add('hidden');
+  document.getElementById('authSuccess').classList.add('hidden');
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  document.getElementById('authSuccess').classList.add('hidden');
+}
+function showAuthSuccess(msg) {
+  const el = document.getElementById('authSuccess');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  document.getElementById('authError').classList.add('hidden');
+}
+
+async function showAuthScreen() {
+  document.getElementById('appShell').classList.add('hidden');
+  document.getElementById('authScreen').classList.remove('hidden');
+  accountsExist = await checkAccountsExist();
+  setAuthMode(accountsExist ? 'login' : 'signup');
+}
+
+function updateUserUI() {
+  if (!currentUser) return;
+  const name = (currentUser.user_metadata && currentUser.user_metadata.full_name) || currentUser.email.split('@')[0];
+  const initials = name.trim().slice(0, 2).toUpperCase();
+  document.getElementById('userAvatar').textContent = initials;
+  document.getElementById('userName').textContent = name;
+  document.getElementById('userEmail').textContent = currentUser.email;
+  document.getElementById('headerGreeting').textContent = `Olá, ${name.split(' ')[0]}`;
+}
+
+async function handleAuthenticated(user) {
+  currentUser = user;
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
+  updateUserUI();
+  await loadCategories();
+  populateCategorySelect();
+  renderCategoryList();
+  await loadTransactions();
+}
+
+// ============================================================
 // DADOS
 // ============================================================
 let seq = 1;
@@ -16,35 +103,54 @@ const uid = () => String(seq++);
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-const CATEGORY_HEX = {
-  'Salário': '#8A661F',
-  'Vendas Benegrano': '#2E6B4C',
-  'Alimentação': '#B5653F',
-  'Moradia': '#4A5D80',
-  'Transporte': '#6C5A96',
-  'Lazer': '#A34C74',
-  'Assinaturas': '#3E7C90',
-  'Saúde': '#B5453F',
-  'Educação': '#557A55',
-  'Investimentos': '#8C6E2F',
-  'Insumos Benegrano': '#7A5A34',
-  'Outros': '#5A5A5A',
-};
+// Categorias agora são dinâmicas e pertencem a cada usuário (tabela `categories` no Supabase).
+// As listas abaixo só servem de PONTO DE PARTIDA:
+//  - DEMO_CATEGORIES:              usada apenas no modo demonstração (sem Supabase configurado).
+//  - DEFAULT_NEW_USER_CATEGORIES:  semeada automaticamente na primeira vez que um usuário novo entra.
+const DEMO_CATEGORIES = [
+  { name: 'Salário', color: '#8A661F' },
+  { name: 'Vendas Benegrano', color: '#2E6B4C' },
+  { name: 'Alimentação', color: '#B5653F' },
+  { name: 'Moradia', color: '#4A5D80' },
+  { name: 'Transporte', color: '#6C5A96' },
+  { name: 'Lazer', color: '#A34C74' },
+  { name: 'Assinaturas', color: '#3E7C90' },
+  { name: 'Saúde', color: '#B5453F' },
+  { name: 'Educação', color: '#557A55' },
+  { name: 'Investimentos', color: '#8C6E2F' },
+  { name: 'Insumos Benegrano', color: '#7A5A34' },
+  { name: 'Outros', color: '#5A5A5A' },
+];
 
-const CATEGORY_TAILWIND = {
-  'Salário': { bg: 'bg-[#F1E4CD]', text: 'text-[#8A661F]' },
-  'Vendas Benegrano': { bg: 'bg-[#E7F0EA]', text: 'text-[#2E6B4C]' },
-  'Alimentação': { bg: 'bg-[#FBEFE7]', text: 'text-[#B5653F]' },
-  'Moradia': { bg: 'bg-[#EAEEF5]', text: 'text-[#4A5D80]' },
-  'Transporte': { bg: 'bg-[#F0EDF7]', text: 'text-[#6C5A96]' },
-  'Lazer': { bg: 'bg-[#FDEDF3]', text: 'text-[#A34C74]' },
-  'Assinaturas': { bg: 'bg-[#EAF2F5]', text: 'text-[#3E7C90]' },
-  'Saúde': { bg: 'bg-[#FCEBEB]', text: 'text-[#B5453F]' },
-  'Educação': { bg: 'bg-[#EEF3EC]', text: 'text-[#557A55]' },
-  'Investimentos': { bg: 'bg-[#F5F0E4]', text: 'text-[#8C6E2F]' },
-  'Insumos Benegrano': { bg: 'bg-[#F0E9DF]', text: 'text-[#7A5A34]' },
-  'Outros': { bg: 'bg-[#EEEEEE]', text: 'text-[#5A5A5A]' },
-};
+const DEFAULT_NEW_USER_CATEGORIES = [
+  { name: 'Salário', color: '#8A661F' },
+  { name: 'Alimentação', color: '#B5653F' },
+  { name: 'Moradia', color: '#4A5D80' },
+  { name: 'Transporte', color: '#6C5A96' },
+  { name: 'Lazer', color: '#A34C74' },
+  { name: 'Assinaturas', color: '#3E7C90' },
+  { name: 'Saúde', color: '#B5453F' },
+  { name: 'Educação', color: '#557A55' },
+  { name: 'Investimentos', color: '#8C6E2F' },
+  { name: 'Outros', color: '#5A5A5A' },
+];
+
+let categories = [];
+
+// Converte hex (#RRGGBB) em rgba(...) para permitir cores livres, escolhidas pelo usuário,
+// nos badges de categoria (que antes usavam classes Tailwind fixas).
+function hexToRgba(hex, alpha) {
+  const clean = (hex || '#6B7280').replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  const r = parseInt(full.substring(0, 2), 16) || 0;
+  const g = parseInt(full.substring(2, 4), 16) || 0;
+  const b = parseInt(full.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+function getCategoryColor(name) {
+  const found = categories.find(c => c.name === name);
+  return found ? found.color : '#6B7280';
+}
 
 const SEED_DATA = [
   { date: '2026-07-01', description: 'Salário Semanal', category: 'Salário', type: 'entrada', value: 950.00, notes: '' },
@@ -82,6 +188,7 @@ const SEED_DATA = [
 ];
 
 let transactions = CLOUD_MODE ? [] : SEED_DATA.map(t => ({ id: uid(), ...t }));
+if (!CLOUD_MODE) categories = DEMO_CATEGORIES.map(c => ({ id: uid(), ...c }));
 
 // ============================================================
 // ESTADO
@@ -205,6 +312,60 @@ async function insertTransactionRemote(tx) {
 async function deleteTransactionRemote(id) {
   const { error } = await db.from('transactions').delete().eq('id', id);
   if (error) { showBanner('error', 'Erro ao excluir na nuvem: ' + error.message); return false; }
+  return true;
+}
+
+// ============================================================
+// CAMADA DE DADOS: CATEGORIAS
+// ============================================================
+function traduzirErroCategoria(msg) {
+  if (/duplicate key/i.test(msg)) return 'Já existe uma categoria com esse nome.';
+  return msg;
+}
+
+async function loadCategories() {
+  if (!CLOUD_MODE) return; // modo demonstração já tem categorias fixas em memória
+
+  const { data, error } = await db.from('categories').select('*').order('name', { ascending: true });
+  if (error) {
+    showBanner('error', 'Não foi possível carregar as categorias: ' + error.message);
+    categories = [];
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    // Primeiro acesso deste usuário: cria o conjunto padrão de categorias para ele.
+    const seeds = DEFAULT_NEW_USER_CATEGORIES.map(c => ({ name: c.name, color: c.color }));
+    const { data: inserted, error: seedError } = await db.from('categories').insert(seeds).select();
+    if (seedError) {
+      showBanner('error', 'Erro ao criar categorias padrão: ' + seedError.message);
+      categories = [];
+      return;
+    }
+    categories = inserted.slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  } else {
+    categories = data;
+  }
+}
+
+async function addCategory(name, color) {
+  if (CLOUD_MODE) {
+    const { data, error } = await db.from('categories').insert([{ name, color }]).select();
+    if (error) { showBanner('error', 'Erro ao adicionar categoria: ' + traduzirErroCategoria(error.message)); return false; }
+    categories.push(data[0]);
+  } else {
+    categories.push({ id: uid(), name, color });
+  }
+  categories.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  return true;
+}
+
+async function removeCategory(id) {
+  if (CLOUD_MODE) {
+    const { error } = await db.from('categories').delete().eq('id', id);
+    if (error) { showBanner('error', 'Erro ao excluir categoria: ' + error.message); return false; }
+  }
+  categories = categories.filter(c => c.id !== id);
   return true;
 }
 
@@ -363,7 +524,8 @@ function renderTable() {
   }
 
   tbody.innerHTML = rows.map(t => {
-    const catClass = CATEGORY_TAILWIND[t.category] || CATEGORY_TAILWIND['Outros'];
+    const catColor = getCategoryColor(t.category);
+    const catStyle = `background-color:${hexToRgba(catColor, 0.14)}; color:${catColor};`;
     const isEntrada = t.type === 'entrada';
     const noteBtn = t.notes
       ? `<button data-action="toggle-note" data-id="${t.id}" title="Ver observação" class="text-muted hover:text-gold transition-colors shrink-0">${infoIcon}</button>`
@@ -381,7 +543,7 @@ function renderTable() {
           </div>
         </td>
         <td class="px-4 py-3 text-sm whitespace-nowrap">
-          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${catClass.bg} ${catClass.text}">${t.category}</span>
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style="${catStyle}">${escapeHtml(t.category)}</span>
         </td>
         <td class="px-4 py-3 text-sm whitespace-nowrap">
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${isEntrada ? 'bg-gainbg text-gain' : 'bg-lossbg text-loss'}">
@@ -436,7 +598,7 @@ function renderChart() {
     rows.forEach(t => { totals[t.category] = (totals[t.category] || 0) + t.value; });
     const labels = Object.keys(totals);
     const data = labels.map(l => totals[l]);
-    const colors = labels.map(l => CATEGORY_HEX[l] || '#999999');
+    const colors = labels.map(l => getCategoryColor(l));
     const totalValue = data.reduce((a, b) => a + b, 0);
 
     if (labels.length === 0) {
@@ -532,7 +694,25 @@ const form = document.getElementById('transactionForm');
 
 function populateCategorySelect() {
   const select = document.getElementById('fieldCategory');
-  select.innerHTML = Object.keys(CATEGORY_HEX).map(c => `<option value="${c}">${c}</option>`).join('');
+  select.innerHTML = categories.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+}
+
+function renderCategoryList() {
+  const container = document.getElementById('categoryList');
+  const emptyState = document.getElementById('categoryEmptyState');
+  if (categories.length === 0) {
+    container.innerHTML = '';
+    emptyState.classList.remove('hidden');
+    return;
+  }
+  emptyState.classList.add('hidden');
+  container.innerHTML = categories.map(c => `
+    <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-[#EEECE7]">
+      <span class="w-3 h-3 rounded-full shrink-0" style="background-color:${c.color};"></span>
+      <span class="text-sm truncate flex-1">${escapeHtml(c.name)}</span>
+      <button type="button" data-action="delete-category" data-id="${c.id}" data-name="${escapeHtml(c.name)}" title="Excluir categoria" class="text-muted hover:text-loss transition-colors shrink-0">${trashIcon}</button>
+    </div>
+  `).join('');
 }
 
 function setModalType(type) {
@@ -607,6 +787,109 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ============================================================
+// EVENT LISTENERS: AUTENTICAÇÃO
+// ============================================================
+document.getElementById('authTabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.auth-tab-btn');
+  if (!btn) return;
+  setAuthMode(btn.dataset.mode);
+});
+
+document.getElementById('authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalLabel = submitBtn.textContent;
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const name = document.getElementById('authName').value.trim();
+
+  document.getElementById('authError').classList.add('hidden');
+  document.getElementById('authSuccess').classList.add('hidden');
+
+  if (!CLOUD_MODE) { showAuthError('Configure o Supabase (topo do código) para usar login.'); return; }
+
+  if (authMode === 'signup') {
+    if (!name) { showAuthError('Informe seu nome.'); return; }
+
+    submitBtn.disabled = true; submitBtn.textContent = 'Criando conta…';
+    const { data, error } = await db.auth.signUp({ email, password, options: { data: { full_name: name } } });
+    submitBtn.disabled = false; submitBtn.textContent = originalLabel;
+
+    if (error) { showAuthError(traduzirErroAuth(error.message)); return; }
+
+    if (data.session) {
+      await handleAuthenticated(data.user);
+    } else {
+      showAuthSuccess('Conta criada! Verifique seu e-mail para confirmar o cadastro antes de entrar.');
+      document.getElementById('authForm').reset();
+      setAuthMode('login');
+    }
+  } else {
+    submitBtn.disabled = true; submitBtn.textContent = 'Entrando…';
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    submitBtn.disabled = false; submitBtn.textContent = originalLabel;
+
+    if (error) { showAuthError(traduzirErroAuth(error.message)); return; }
+    await handleAuthenticated(data.user);
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  if (CLOUD_MODE) await db.auth.signOut();
+  currentUser = null;
+  transactions = [];
+  categories = [];
+  document.getElementById('authForm').reset();
+  showAuthScreen();
+});
+
+// ============================================================
+// EVENT LISTENERS: CATEGORIAS (Configurações)
+// ============================================================
+document.getElementById('categoryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nameInput = document.getElementById('categoryName');
+  const colorInput = document.getElementById('categoryColor');
+  const name = nameInput.value.trim();
+  const color = colorInput.value;
+  if (!name) return;
+
+  const submitBtn = document.getElementById('categorySubmitBtn');
+  submitBtn.disabled = true;
+  const ok = await addCategory(name, color);
+  submitBtn.disabled = false;
+  if (!ok) return;
+
+  nameInput.value = '';
+  colorInput.value = '#6B7280';
+  populateCategorySelect();
+  renderCategoryList();
+  renderChart();
+});
+
+document.getElementById('categoryList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="delete-category"]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const name = btn.dataset.name;
+  const usageCount = transactions.filter(t => t.category === name).length;
+
+  if (usageCount > 0) {
+    const confirmed = confirm(`"${name}" está sendo usada em ${usageCount} lançamento(s). Os lançamentos existentes manterão essa categoria no histórico, mas ela deixará de aparecer para novos lançamentos. Deseja excluir mesmo assim?`);
+    if (!confirmed) return;
+  }
+
+  btn.disabled = true;
+  const ok = await removeCategory(id);
+  if (!ok) { btn.disabled = false; return; }
+  populateCategorySelect();
+  renderCategoryList();
+  renderTable();
+  renderChart();
+});
+
+// ============================================================
 // EVENT LISTENERS
 // ============================================================
 document.getElementById('periodList').addEventListener('click', (e) => {
@@ -678,14 +961,37 @@ document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('cl
 // ============================================================
 // INIT
 // ============================================================
-populateCategorySelect();
 document.getElementById('headerSubtitle').textContent = `Resumo do seu fluxo de caixa · ${new Date().getFullYear()}`;
 document.getElementById('dataScopeNote').textContent = CLOUD_MODE
-  ? 'Seus lançamentos são salvos automaticamente na nuvem (Supabase) e sincronizam entre dispositivos.'
-  : 'Modo demonstração: os dados ficam apenas na memória do navegador. Configure o Supabase (topo do código) para salvar na nuvem.';
+  ? 'Seus lançamentos são salvos automaticamente na nuvem (Supabase) e ficam visíveis apenas para a sua conta.'
+  : 'Modo demonstração: os dados ficam apenas na memória do navegador. Configure o Supabase (topo do código) para salvar na nuvem com login multiusuário.';
 
-if (CLOUD_MODE) {
-  loadTransactions();
-} else {
-  renderAll();
+async function init() {
+  if (!CLOUD_MODE) {
+    // Sem Supabase configurado: pula o login e usa dados de demonstração em memória.
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('appShell').classList.remove('hidden');
+    populateCategorySelect();
+    renderCategoryList();
+    renderAll();
+    return;
+  }
+
+  const { data: { session } } = await db.auth.getSession();
+  if (session && session.user) {
+    await handleAuthenticated(session.user);
+  } else {
+    await showAuthScreen();
+  }
+
+  db.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      transactions = [];
+      categories = [];
+      showAuthScreen();
+    }
+  });
 }
+
+init();

@@ -15,6 +15,48 @@
 </head>
 <body class="bg-canvas text-ink antialiased">
 
+<!-- ============ AUTH SCREEN (login / cadastro) ============ -->
+<div id="authScreen" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-canvas">
+  <div class="w-full max-w-sm">
+    <div class="flex flex-col items-center mb-6">
+      <div class="w-12 h-12 rounded-xl bg-gold flex items-center justify-center font-display font-bold text-white text-base shrink-0 mb-3">FC</div>
+      <p class="font-display font-semibold text-lg leading-tight">Fluxo de Caixa</p>
+      <p class="text-xs text-muted mt-0.5">Painel Financeiro Pessoal</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-card p-6">
+      <div id="authTabs" class="flex gap-1 bg-[#F0EFEC] rounded-xl p-1 mb-3">
+        <button type="button" data-mode="login" class="auth-tab-btn flex-1 py-2 rounded-lg text-sm font-semibold transition-colors">Entrar</button>
+        <button type="button" data-mode="signup" class="auth-tab-btn flex-1 py-2 rounded-lg text-sm font-semibold transition-colors">Criar conta</button>
+      </div>
+      <p id="authFirstRunNote" class="hidden text-xs text-muted text-center mb-5">Crie a primeira conta para começar a usar o Fluxo de Caixa.</p>
+
+      <div id="authError" class="hidden mb-4 rounded-xl border border-loss/30 bg-lossbg text-loss px-3.5 py-2.5 text-xs"></div>
+      <div id="authSuccess" class="hidden mb-4 rounded-xl border border-gold/30 bg-goldlight text-[#7A5A2E] px-3.5 py-2.5 text-xs"></div>
+
+      <form id="authForm" class="space-y-4">
+        <div id="authNameField" class="hidden">
+          <label for="authName" class="block text-xs font-medium text-muted mb-1.5">Nome</label>
+          <input type="text" id="authName" placeholder="Seu nome" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        </div>
+        <div>
+          <label for="authEmail" class="block text-xs font-medium text-muted mb-1.5">E-mail</label>
+          <input type="email" id="authEmail" required placeholder="voce@exemplo.com" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        </div>
+        <div>
+          <label for="authPassword" class="block text-xs font-medium text-muted mb-1.5">Senha</label>
+          <input type="password" id="authPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        </div>
+        <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-gold hover:brightness-95 transition-all">Entrar</button>
+      </form>
+    </div>
+    <p class="text-xs text-muted text-center mt-4">Cada conta tem seu próprio caixa — seus lançamentos e categorias ficam visíveis só para você.</p>
+  </div>
+</div>
+
+<!-- ============ APP (oculto até autenticar) ============ -->
+<div id="appShell" class="hidden">
+
 <div class="flex h-screen w-full overflow-hidden">
 
   <!-- ============ SIDEBAR ============ -->
@@ -53,29 +95,28 @@
         </svg>
         Relatórios
       </a>
-      <span class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 cursor-not-allowed" title="Em breve">
+      <a href="#configSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
         <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/>
         </svg>
         Configurações
-        <span class="ml-auto text-[10px] bg-white/10 px-1.5 py-0.5 rounded-md">em breve</span>
-      </span>
+      </a>
     </nav>
 
     <div class="px-3 pb-3">
-      <span class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 cursor-not-allowed" title="Em breve">
+      <button type="button" id="logoutBtn" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-sidebarhover hover:text-white transition-colors">
         <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
         Sair
-      </span>
+      </button>
     </div>
 
     <div class="px-4 py-4 border-t border-white/10 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-full bg-goldlight text-[#7A5A2E] flex items-center justify-center font-display font-semibold text-xs shrink-0">RD</div>
+      <div id="userAvatar" class="w-9 h-9 rounded-full bg-goldlight text-[#7A5A2E] flex items-center justify-center font-display font-semibold text-xs shrink-0">--</div>
       <div class="min-w-0">
-        <p class="text-sm font-medium text-white truncate">Rodrigo Souza</p>
-        <p class="text-xs text-slate-500 truncate">RDcorprog · Desenvolvedor</p>
+        <p id="userName" class="text-sm font-medium text-white truncate">–</p>
+        <p id="userEmail" class="text-xs text-slate-500 truncate">–</p>
       </div>
     </div>
   </aside>
@@ -90,7 +131,7 @@
           <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div class="min-w-0">
-          <h1 class="font-display font-semibold text-base leading-tight truncate">Olá, Rodrigo</h1>
+          <h1 id="headerGreeting" class="font-display font-semibold text-base leading-tight truncate">Olá</h1>
           <p id="headerSubtitle" class="text-xs text-muted truncate">Resumo do seu fluxo de caixa</p>
         </div>
         <div id="syncIndicator" class="hidden ml-auto items-center gap-1.5 text-xs text-muted shrink-0">
@@ -212,6 +253,29 @@
         </div>
       </section>
 
+      <!-- Configurações -->
+      <section id="configSection" class="bg-white rounded-2xl shadow-card p-5 scroll-mt-24 fade-in-up">
+        <div class="mb-4">
+          <p class="font-display font-semibold text-sm">Configurações</p>
+          <p class="text-xs text-muted mt-0.5">Adicione ou remova categorias para organizar melhor seus lançamentos</p>
+        </div>
+
+        <form id="categoryForm" class="flex flex-col sm:flex-row gap-3 sm:items-end mb-5">
+          <div class="flex-1">
+            <label for="categoryName" class="block text-xs font-medium text-muted mb-1.5">Nova categoria</label>
+            <input type="text" id="categoryName" required placeholder="Ex.: Pets" maxlength="40" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <div>
+            <label for="categoryColor" class="block text-xs font-medium text-muted mb-1.5">Cor</label>
+            <input type="color" id="categoryColor" value="#6B7280" class="h-[42px] w-16 rounded-xl border border-[#E7E5E0] cursor-pointer" />
+          </div>
+          <button type="submit" id="categorySubmitBtn" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gold hover:brightness-95 transition-all shrink-0">Adicionar</button>
+        </form>
+
+        <div id="categoryEmptyState" class="hidden text-sm text-muted text-center py-6">Nenhuma categoria cadastrada ainda.</div>
+        <div id="categoryList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+      </section>
+
       <p id="dataScopeNote" class="text-xs text-muted text-center pb-4"></p>
     </div>
   </main>
@@ -272,6 +336,8 @@
     </form>
   </div>
 </div>
+
+</div><!-- /#appShell -->
 
 <script src="js/app.js"></script>
 </body>
