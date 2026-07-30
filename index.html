@@ -77,25 +77,31 @@
     <nav class="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
       <p class="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Navegação</p>
 
-      <a href="#topo" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl bg-sidebarhover text-white text-sm font-medium">
+      <a href="#" data-view="dashboard" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl bg-sidebarhover text-white text-sm font-medium">
         <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
         </svg>
         Painel
       </a>
-      <a href="#tableSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
+      <a href="#" data-view="dashboard" data-scroll-to="tableSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
         <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/>
         </svg>
         Lançamentos
       </a>
-      <a href="#chartSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
+      <a href="#" data-view="dashboard" data-scroll-to="chartSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
         <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <line x1="3" y1="20" x2="21" y2="20"/><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="7"/><line x1="18" y1="20" x2="18" y2="15"/>
         </svg>
         Relatórios
       </a>
-      <a href="#configSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
+      <a href="#" data-view="investments" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
+        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>
+        </svg>
+        Investimentos
+      </a>
+      <a href="#" data-view="config" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
         <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/>
         </svg>
@@ -141,12 +147,12 @@
       </div>
     </header>
 
-    <div id="topo" class="px-5 lg:px-8 py-6 space-y-6 max-w-[1400px]">
+    <div id="topo" class="view-section px-5 lg:px-8 py-6 space-y-6 max-w-[1400px]">
 
       <div id="connectionBanner" class="hidden rounded-xl border px-4 py-3 text-sm fade-in-up"></div>
 
       <!-- KPI Cards -->
-      <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 fade-in-up">
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 fade-in-up">
         <div class="bg-white rounded-2xl shadow-card p-5">
           <div class="flex items-start justify-between">
             <div>
@@ -187,6 +193,20 @@
           </div>
           <p id="kpiSaldoValue" class="font-display font-bold text-2xl mt-3 tabular">R$ 0,00</p>
           <p class="text-xs text-muted mt-1">Ganhos − Gastos do período</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-card p-5">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-sm font-medium text-muted">Investido</p>
+              <p class="text-xs text-gold font-medium mt-0.5">Valor atual</p>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-[#EAF2F5] text-[#3E7C90] flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
+            </div>
+          </div>
+          <p id="kpiInvestidoValue" class="font-display font-bold text-2xl mt-3 tabular text-[#3E7C90]">R$ 0,00</p>
+          <p id="kpiInvestidoSub" class="text-xs text-muted mt-1">0 investimento(s)</p>
         </div>
       </section>
 
@@ -253,8 +273,11 @@
         </div>
       </section>
 
-      <!-- Configurações -->
-      <section id="configSection" class="bg-white rounded-2xl shadow-card p-5 scroll-mt-24 fade-in-up">
+    </div><!-- /#topo (view: Painel) -->
+
+    <!-- ============ VIEW: CONFIGURAÇÕES ============ -->
+    <div id="configSection" class="view-section hidden px-5 lg:px-8 py-6 max-w-[1400px]">
+      <section class="bg-white rounded-2xl shadow-card p-5 fade-in-up">
         <div class="mb-4">
           <p class="font-display font-semibold text-sm">Configurações</p>
           <p class="text-xs text-muted mt-0.5">Adicione ou remova categorias para organizar melhor seus lançamentos</p>
@@ -275,9 +298,80 @@
         <div id="categoryEmptyState" class="hidden text-sm text-muted text-center py-6">Nenhuma categoria cadastrada ainda.</div>
         <div id="categoryList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
       </section>
-
-      <p id="dataScopeNote" class="text-xs text-muted text-center pb-4"></p>
     </div>
+
+    <!-- ============ VIEW: INVESTIMENTOS ============ -->
+    <div id="investmentsSection" class="view-section hidden px-5 lg:px-8 py-6 max-w-[1400px] space-y-6">
+
+      <section class="bg-white rounded-2xl shadow-card p-5 fade-in-up">
+        <div class="mb-4">
+          <p class="font-display font-semibold text-sm">Investimentos</p>
+          <p class="text-xs text-muted mt-0.5">Cadastre seus investimentos e registre os aportes — o rendimento é calculado automaticamente com juros compostos</p>
+        </div>
+
+        <form id="investmentForm" class="flex flex-col sm:flex-row gap-3 sm:items-end mb-5">
+          <div class="flex-1">
+            <label for="investmentName" class="block text-xs font-medium text-muted mb-1.5">Nome do investimento</label>
+            <input type="text" id="investmentName" required placeholder="Ex.: CDB Banco X" maxlength="60" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <div class="w-28">
+            <label for="investmentRateValue" class="block text-xs font-medium text-muted mb-1.5">Taxa (%)</label>
+            <input type="number" id="investmentRateValue" required min="0" step="0.01" placeholder="0,90" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <div class="w-36">
+            <label for="investmentRateType" class="block text-xs font-medium text-muted mb-1.5">Período</label>
+            <select id="investmentRateType" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm bg-white focus-visible:ring-2 focus-visible:ring-gold/40">
+              <option value="monthly">% ao mês</option>
+              <option value="annual">% ao ano</option>
+            </select>
+          </div>
+          <button type="submit" id="investmentSubmitBtn" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gold hover:brightness-95 transition-all shrink-0">Adicionar</button>
+        </form>
+
+        <div id="investmentEmptyState" class="hidden text-sm text-muted text-center py-6">Nenhum investimento cadastrado ainda.</div>
+        <div id="investmentList" class="space-y-4"></div>
+      </section>
+
+      <!-- Simulador hipotético -->
+      <section class="bg-white rounded-2xl shadow-card p-5 fade-in-up">
+        <div class="mb-4">
+          <p class="font-display font-semibold text-sm">Simulador de investimentos</p>
+          <p class="text-xs text-muted mt-0.5">Teste um cenário hipotético — não afeta seus investimentos reais</p>
+        </div>
+
+        <form id="simulatorForm" class="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+          <div class="col-span-2 sm:col-span-1">
+            <label for="simInitial" class="block text-xs font-medium text-muted mb-1.5">Valor inicial (R$)</label>
+            <input type="number" id="simInitial" required min="0" step="0.01" placeholder="1000" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <div class="col-span-2 sm:col-span-1">
+            <label for="simMonthly" class="block text-xs font-medium text-muted mb-1.5">Aporte mensal (R$)</label>
+            <input type="number" id="simMonthly" min="0" step="0.01" placeholder="0" value="0" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <div>
+            <label for="simRateValue" class="block text-xs font-medium text-muted mb-1.5">Taxa (%)</label>
+            <input type="number" id="simRateValue" required min="0" step="0.01" placeholder="0,90" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <div>
+            <label for="simRateType" class="block text-xs font-medium text-muted mb-1.5">Período</label>
+            <select id="simRateType" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm bg-white focus-visible:ring-2 focus-visible:ring-gold/40">
+              <option value="monthly">% ao mês</option>
+              <option value="annual">% ao ano</option>
+            </select>
+          </div>
+          <div>
+            <label for="simMonths" class="block text-xs font-medium text-muted mb-1.5">Prazo (meses)</label>
+            <input type="number" id="simMonths" required min="1" step="1" placeholder="12" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          </div>
+          <button type="submit" class="col-span-2 sm:col-span-5 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gold hover:brightness-95 transition-all">Simular</button>
+        </form>
+
+        <div id="simulatorResult" class="hidden mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+      </section>
+    </div>
+
+    <p id="dataScopeNote" class="px-5 lg:px-8 pb-6 max-w-[1400px] text-xs text-muted"></p>
+
   </main>
 </div>
 
