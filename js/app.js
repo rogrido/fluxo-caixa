@@ -92,6 +92,7 @@ async function handleAuthenticated(user) {
   populateCategorySelect();
   renderCategoryList();
   await loadTransactions();
+  await loadBalanceCheck();
 }
 
 // ============================================================
@@ -200,6 +201,8 @@ const state = {
 };
 let modalType = null; // nenhum tipo pré-selecionado: você precisa escolher entrada ou saída
 let editingId = null; // id do lançamento em edição (null = criando um novo)
+let balanceCheck = null;     // última conferência: { bank_balance, checked_at } (null = nunca conferiu)
+let transactionsOk = false;  // true quando os lançamentos foram carregados com sucesso (evita alarme falso)
 let chartInstance = null;
 
 // ============================================================
@@ -294,10 +297,12 @@ async function loadTransactions() {
   if (error) {
     showBanner('error', 'Não foi possível conectar ao banco de dados: ' + error.message + '. Confira a URL e a chave do Supabase no início do código.');
     transactions = [];
+    transactionsOk = false;
     renderAll();
     return;
   }
   hideBanner();
+  transactionsOk = true;
   transactions = data.map(row => ({ ...row, value: Number(row.value) }));
   renderAll();
 }
@@ -521,10 +526,21 @@ const infoIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="c
 
 const editIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 
+// Converte o horário do banco (ex.: "2026-10-16T21:23:45.123456+00:00") em milissegundos.
+function tsMs(s) {
+  if (!s) return 0;
+  const ms = new Date(String(s).replace(/(\.\d{3})\d+/, '$1')).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
 function getTableRows() {
   let rows = getFilteredRows();
   if (state.typeFilter !== 'all') rows = rows.filter(t => t.type === state.typeFilter);
-  return rows.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const order = new Map(transactions.map((t, i) => [t.id, i]));
+  return rows.slice().sort((a, b) =>
+    b.date.localeCompare(a.date) ||             // dia mais recente primeiro
+    tsMs(b.created_at) - tsMs(a.created_at) ||  // no mesmo dia: o último lançamento salvo fica no topo
+    order.get(b.id) - order.get(a.id));         // empate total: mantém a ordem de carregamento
 }
 
 function renderTable() {
@@ -697,6 +713,7 @@ function renderAll() {
   renderChartTabs();
   renderTable();
   renderChart();
+  renderBalanceStatus();
 }
 
 // ============================================================
@@ -926,13 +943,174 @@ form.addEventListener('submit', async (e) => {
     await loadTransactions();
     highlightRow(inserted.id);
   } else {
-    const newTx = { id: uid(), ...payload };
+    const newTx = { id: uid(), created_at: new Date().toISOString(), ...payload };
     transactions.push(newTx);
     closeModal();
     renderAll();
     highlightRow(newTx.id);
   }
 });
+
+// ============================================================
+// CONFERÊNCIA DE SALDO
+// ============================================================
+// Como funciona (tudo em centavos inteiros, sem arredondar):
+//  - saldo do site  = soma de TODOS os lançamentos (entradas − saídas), de todos os períodos;
+//  - saldo do banco = valor que você digitou na conferência + os lançamentos salvos DEPOIS dela
+//    (um lançamento novo mexe nos dois lados, então a diferença não muda);
+//  - editar ou excluir mexe só no saldo do site, então a diferença aparece até você corrigir.
+const toCents = v => Math.round(Number(v) * 100);
+const signedCents = t => (t.type === 'entrada' ? 1 : -1) * toCents(t.value);
+
+function siteTotalCents() {
+  return transactions.reduce((sum, t) => sum + signedCents(t), 0);
+}
+
+function computeBalanceCheck() {
+  if (!balanceCheck) return null;
+  const checkedMs = tsMs(balanceCheck.checked_at);
+  let site = 0, movedSince = 0;
+  for (const t of transactions) {
+    const s = signedCents(t);
+    site += s;
+    if (checkedMs > 0 && tsMs(t.created_at) > checkedMs) movedSince += s;
+  }
+  const bank = toCents(balanceCheck.bank_balance) + movedSince;
+  return { siteCents: site, bankCents: bank, diffCents: site - bank };
+}
+
+function formatCheckedAt(iso) {
+  const ms = tsMs(iso);
+  if (!ms) return '';
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} às ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderBalanceStatus() {
+  const banner = document.getElementById('balanceBanner');
+  const okPill = document.getElementById('balanceOk');
+  const reliable = !CLOUD_MODE || transactionsOk;   // não compara se os lançamentos não carregaram
+  const res = reliable ? computeBalanceCheck() : null;
+
+  if (!res) {
+    banner.classList.add('hidden');
+    okPill.classList.add('hidden'); okPill.classList.remove('inline-flex');
+    return;
+  }
+  const when = formatCheckedAt(balanceCheck.checked_at);
+  if (res.diffCents === 0) {
+    banner.classList.add('hidden');
+    okPill.innerHTML = 'Conferido ✓' + (when ? `<span class="hidden sm:inline font-normal">&nbsp;· ${when}</span>` : '');
+    okPill.title = 'O saldo do site bate com o banco (última conferência: ' + when + ')';
+    okPill.classList.remove('hidden'); okPill.classList.add('inline-flex');
+  } else {
+    okPill.classList.add('hidden'); okPill.classList.remove('inline-flex');
+    const more = res.diffCents > 0;
+    document.getElementById('balanceBannerTitle').textContent =
+      `O saldo do site está ${formatCurrency(Math.abs(res.diffCents) / 100)} a ${more ? 'mais' : 'menos'} que o banco.`;
+    document.getElementById('balanceBannerSub').textContent =
+      `Conferido em ${when}. Corrija o lançamento errado (botão de lápis) ou refaça a conferência.`;
+    banner.classList.remove('hidden');
+  }
+}
+
+async function loadBalanceCheck() {
+  balanceCheck = null;
+  if (CLOUD_MODE) {
+    const { data, error } = await db.from('balance_checks').select('*').maybeSingle();
+    if (error) console.warn('Conferência de saldo indisponível:', error.message); // ex.: tabela ainda não criada
+    else if (data) balanceCheck = { bank_balance: Number(data.bank_balance), checked_at: data.checked_at };
+  }
+  renderBalanceStatus();
+}
+
+function traduzirErroConferencia(error) {
+  const msg = (error && error.message) || '';
+  if ((error && error.code === 'PGRST205') || /schema cache|does not exist/i.test(msg)) {
+    return 'A tabela da conferência ainda não foi criada no Supabase. Rode o comando SQL do Passo 3 e tente de novo.';
+  }
+  return 'Não foi possível salvar a conferência: ' + msg;
+}
+
+// ---------- Janela "Conferir saldo" ----------
+const balanceModal = document.getElementById('balanceModal');
+const balancePanel = balanceModal.querySelector('.modal-panel');
+const balanceForm = document.getElementById('balanceForm');
+const fieldBank = document.getElementById('fieldBankBalance');
+let bankCents = 0;
+
+function updateBalanceForm() {
+  const btn = document.getElementById('balanceSubmitBtn');
+  const ok = bankCents > 0;
+  btn.disabled = !ok;
+  btn.className = 'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ' +
+    (ok ? 'text-white bg-gold hover:brightness-95' : 'text-white/80 bg-[#C9C6BE] cursor-not-allowed');
+}
+function setBankCents(cents) {
+  bankCents = Math.max(0, Math.min(cents, MAX_CENTS));
+  fieldBank.value = bankCents > 0 ? formatBRL(bankCents) : '';
+  document.getElementById('balanceMsg').className = 'text-xs text-muted min-h-[1rem]';
+  document.getElementById('balanceMsg').textContent = '';
+  updateBalanceForm();
+}
+fieldBank.addEventListener('input', () => {
+  const digits = fieldBank.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 12);
+  setBankCents(digits ? parseInt(digits, 10) : 0);
+});
+fieldBank.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const cents = parsePastedToCents((e.clipboardData || window.clipboardData).getData('text'));
+  if (!Number.isNaN(cents)) setBankCents(cents);
+});
+
+function openBalanceModal() {
+  balanceForm.reset();
+  setBankCents(0);
+  document.getElementById('balanceSiteLine').textContent =
+    'Saldo do site agora (todos os períodos): ' + formatCurrency(siteTotalCents() / 100);
+  balanceModal.classList.remove('opacity-0', 'pointer-events-none');
+  balancePanel.classList.remove('scale-95', 'opacity-0');
+  setTimeout(() => fieldBank.focus(), 50);
+}
+function closeBalanceModal() {
+  balanceModal.classList.add('opacity-0');
+  balancePanel.classList.add('scale-95', 'opacity-0');
+  setTimeout(() => balanceModal.classList.add('pointer-events-none'), 200);
+}
+function showBalanceError(msg) {
+  const el = document.getElementById('balanceMsg');
+  el.className = 'text-xs text-loss font-medium min-h-[1rem]';
+  el.textContent = msg;
+}
+
+balanceForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (bankCents <= 0) return;
+  const btn = document.getElementById('balanceSubmitBtn');
+  if (CLOUD_MODE) {
+    btn.disabled = true;
+    btn.textContent = 'Conferindo…';
+    // O horário (checked_at) é gravado pelo próprio banco, no mesmo relógio do created_at dos lançamentos.
+    const { data, error } = await db.from('balance_checks')
+      .upsert({ user_id: currentUser.id, bank_balance: bankCents / 100 }, { onConflict: 'user_id' })
+      .select().single();
+    btn.textContent = 'Conferir';
+    updateBalanceForm();
+    if (error) { showBalanceError(traduzirErroConferencia(error)); return; }
+    balanceCheck = { bank_balance: Number(data.bank_balance), checked_at: data.checked_at };
+  } else {
+    balanceCheck = { bank_balance: bankCents / 100, checked_at: new Date().toISOString() };
+  }
+  closeBalanceModal();
+  renderBalanceStatus();
+});
+
+document.getElementById('checkBalanceBtn').addEventListener('click', openBalanceModal);
+document.getElementById('balanceRecheckBtn').addEventListener('click', openBalanceModal);
+document.getElementById('balanceCloseBtn').addEventListener('click', closeBalanceModal);
+document.getElementById('balanceCancelBtn').addEventListener('click', closeBalanceModal);
+document.getElementById('balanceBackdrop').addEventListener('click', closeBalanceModal);
 
 // ============================================================
 // EVENT LISTENERS: AUTENTICAÇÃO
@@ -988,6 +1166,8 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   currentUser = null;
   transactions = [];
   categories = [];
+  balanceCheck = null;
+  transactionsOk = false;
   document.getElementById('authForm').reset();
   showAuthScreen();
 });
@@ -1110,6 +1290,7 @@ document.getElementById('fieldDate').addEventListener('input', updateFormState);
 document.getElementById('fieldDate').addEventListener('change', updateFormState);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !modal.classList.contains('pointer-events-none')) closeModal();
+  if (e.key === 'Escape' && !balanceModal.classList.contains('pointer-events-none')) closeBalanceModal();
 });
 
 // Sidebar mobile
@@ -1155,6 +1336,8 @@ async function init() {
       currentUser = null;
       transactions = [];
       categories = [];
+      balanceCheck = null;
+      transactionsOk = false;
       showAuthScreen();
     }
   });
