@@ -146,12 +146,13 @@
 
       <!-- Faixa amarela da conferência de saldo: só some quando a diferença chega a zero -->
       <div id="balanceBanner" class="hidden bg-amber-300 text-amber-950 border-b border-amber-400" role="alert">
-        <div class="flex items-center gap-3 px-5 lg:px-8 py-2.5">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 lg:px-8 py-2.5">
           <span class="text-lg leading-none" aria-hidden="true">⚠</span>
-          <div class="min-w-0 flex-1">
+          <div class="min-w-[180px] flex-1">
             <p id="balanceBannerTitle" class="text-sm font-semibold leading-snug"></p>
             <p id="balanceBannerSub" class="text-xs opacity-80 leading-snug"></p>
           </div>
+          <button type="button" id="balanceSuspectsBtn" class="hidden shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-950 text-amber-50 hover:bg-amber-900 transition-colors">Ver suspeitos</button>
           <button type="button" id="balanceRecheckBtn" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-950/10 hover:bg-amber-950/20 transition-colors">Conferir novamente</button>
         </div>
       </div>
@@ -245,8 +246,19 @@
                 <p class="font-display font-semibold text-sm">Lançamentos</p>
                 <p id="tableCount" class="text-xs text-muted mt-0.5">0 lançamentos</p>
               </div>
-              <div id="pillsContainer" class="flex flex-wrap gap-2"></div>
+              <div class="flex flex-wrap items-center gap-2">
+                <div id="pillsContainer" class="flex flex-wrap gap-2"></div>
+                <div class="relative w-full sm:w-64">
+                  <svg viewBox="0 0 24 24" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/></svg>
+                  <input type="text" id="searchInput" autocomplete="off" aria-label="Pesquisar lançamentos" placeholder="Pesquisar nome, valor ou dia" class="w-full pl-9 pr-8 py-2 rounded-full border border-[#E7E5E0] bg-white text-xs focus-visible:ring-2 focus-visible:ring-gold/40" />
+                  <button type="button" id="searchClearBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink p-0.5" aria-label="Limpar pesquisa">
+                    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
+
+            <div id="searchSummary" class="hidden flex-wrap items-center justify-between gap-2 mb-3 px-3.5 py-2 rounded-xl bg-[#FAF7F0] text-xs text-ink"></div>
 
             <div class="overflow-x-auto -mx-5 px-5">
               <table class="w-full min-w-[720px] border-collapse">
@@ -371,7 +383,7 @@
 <!-- ============ MODAL: CONFERIR SALDO ============ -->
 <div id="balanceModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
   <div id="balanceBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-  <div class="modal-panel relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-200">
+  <div class="modal-panel relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto scale-95 opacity-0 transition-all duration-200">
     <div class="flex items-center justify-between mb-2">
       <h2 class="font-display font-semibold text-lg">Conferir saldo</h2>
       <button type="button" id="balanceCloseBtn" class="text-muted hover:text-ink p-1" aria-label="Fechar">
@@ -392,6 +404,23 @@
         <button type="submit" id="balanceSubmitBtn" disabled class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Conferir</button>
       </div>
     </form>
+
+    <details id="dayCheck" class="mt-5 pt-4 border-t border-[#EEECE7]">
+      <summary class="text-sm font-semibold cursor-pointer select-none">Conferir por dia <span class="font-normal text-muted">(achar onde o erro começou)</span></summary>
+      <p class="text-xs text-muted mt-2 mb-3">Escolha uma data e digite o saldo que o extrato do banco mostra no fim desse dia. O app compara com a soma dos lançamentos até essa data. É só uma consulta, não grava nada.</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="dayDate" class="block text-xs font-medium text-muted mb-1.5">Data</label>
+          <input type="date" id="dayDate" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        </div>
+        <div>
+          <label for="dayBank" class="block text-xs font-medium text-muted mb-1.5">Saldo no fim do dia (R$)</label>
+          <input type="text" inputmode="numeric" autocomplete="off" id="dayBank" placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        </div>
+      </div>
+      <button type="button" id="dayCompareBtn" disabled class="mt-3 w-full py-2 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Comparar neste dia</button>
+      <p id="dayResult" class="text-sm mt-3 min-h-[1rem]"></p>
+    </details>
   </div>
 </div>
 
