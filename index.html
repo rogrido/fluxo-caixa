@@ -134,9 +134,25 @@
           <h1 id="headerGreeting" class="font-display font-semibold text-base leading-tight truncate">Olá</h1>
           <p id="headerSubtitle" class="text-xs text-muted truncate">Resumo do seu fluxo de caixa</p>
         </div>
-        <div id="syncIndicator" class="hidden ml-auto items-center gap-1.5 text-xs text-muted shrink-0">
+        <div class="ml-auto flex items-center gap-3 shrink-0">
+        <div id="syncIndicator" class="hidden items-center gap-1.5 text-xs text-muted shrink-0">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 spin" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/></svg>
           Sincronizando…
+        </div>
+        <span id="balanceOk" class="hidden items-center gap-1 px-2.5 py-1 rounded-full bg-gainbg text-gain text-xs font-semibold whitespace-nowrap"></span>
+        <button type="button" id="checkBalanceBtn" class="px-3 py-1.5 rounded-xl border border-gold/40 text-gold hover:bg-goldlight text-xs font-semibold transition-colors whitespace-nowrap">Conferir<span class="hidden sm:inline">&nbsp;saldo</span></button>
+        </div>
+      </div>
+
+      <!-- Faixa amarela da conferência de saldo: só some quando a diferença chega a zero -->
+      <div id="balanceBanner" class="hidden bg-amber-300 text-amber-950 border-b border-amber-400" role="alert">
+        <div class="flex items-center gap-3 px-5 lg:px-8 py-2.5">
+          <span class="text-lg leading-none" aria-hidden="true">⚠</span>
+          <div class="min-w-0 flex-1">
+            <p id="balanceBannerTitle" class="text-sm font-semibold leading-snug"></p>
+            <p id="balanceBannerSub" class="text-xs opacity-80 leading-snug"></p>
+          </div>
+          <button type="button" id="balanceRecheckBtn" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-950/10 hover:bg-amber-950/20 transition-colors">Conferir novamente</button>
         </div>
       </div>
     </header>
@@ -347,6 +363,33 @@
             <button type="button" id="deleteConfirmBtn" class="flex-1 py-2 rounded-xl text-sm font-semibold text-white bg-loss hover:brightness-95 transition-all">Sim, excluir</button>
           </div>
         </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: CONFERIR SALDO ============ -->
+<div id="balanceModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+  <div id="balanceBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+  <div class="modal-panel relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-display font-semibold text-lg">Conferir saldo</h2>
+      <button type="button" id="balanceCloseBtn" class="text-muted hover:text-ink p-1" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <p class="text-sm text-muted mb-4">Digite o saldo que aparece agora na sua conta do banco. O app compara com a soma de todos os lançamentos, de todos os períodos.</p>
+
+    <form id="balanceForm" class="space-y-4">
+      <p id="balanceSiteLine" class="text-sm text-ink bg-[#FAF9F7] rounded-xl px-3.5 py-2.5"></p>
+      <div>
+        <label for="fieldBankBalance" class="block text-xs font-medium text-muted mb-1.5">Saldo no banco (R$)</label>
+        <input type="text" inputmode="numeric" autocomplete="off" id="fieldBankBalance" required placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+      </div>
+      <p id="balanceMsg" class="text-xs text-muted min-h-[1rem]"></p>
+      <div class="flex gap-3 pt-2">
+        <button type="button" id="balanceCancelBtn" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted bg-[#F0EFEC] hover:bg-[#E7E5E0] transition-colors">Cancelar</button>
+        <button type="submit" id="balanceSubmitBtn" disabled class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Conferir</button>
       </div>
     </form>
   </div>
