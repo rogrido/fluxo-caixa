@@ -198,6 +198,8 @@ const state = {
   period: { year: 'all', month: 'all', week: 'all' }, // drill-down: ano > mês > semana
   typeFilter: 'all',   // 'all' | 'entrada' | 'saida'
   chartMode: 'category', // 'category' | 'weekly'
+  search: '',            // texto da caixa de pesquisa
+  suspectsOnly: false,   // true = lista mostrando só os lançamentos suspeitos da conferência
 };
 let modalType = null; // nenhum tipo pré-selecionado: você precisa escolher entrada ou saída
 let editingId = null; // id do lançamento em edição (null = criando um novo)
@@ -533,23 +535,188 @@ function tsMs(s) {
   return Number.isNaN(ms) ? 0 : ms;
 }
 
+// ---------- PESQUISA: ignora maiúsculas/acentos, aceita pedaço da palavra e erro de digitação ----------
+function normalizeText(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Distância de edição (trocar, apagar, inserir ou inverter 2 letras = 1 erro)
+function editDistance(a, b) {
+  const al = a.length, bl = b.length;
+  if (!al) return bl;
+  if (!bl) return al;
+  const d = Array.from({ length: al + 1 }, (_, i) => { const r = new Array(bl + 1).fill(0); r[0] = i; return r; });
+  for (let j2 = 0; j2 <= bl; j2++) d[0][j2] = j2;
+  for (let i = 1; i <= al; i++) {
+    for (let k = 1; k <= bl; k++) {
+      const cost = a[i - 1] === b[k - 1] ? 0 : 1;
+      d[i][k] = Math.min(d[i - 1][k] + 1, d[i][k - 1] + 1, d[i - 1][k - 1] + cost);
+      if (i > 1 && k > 1 && a[i - 1] === b[k - 2] && a[i - 2] === b[k - 1]) d[i][k] = Math.min(d[i][k], d[i - 2][k - 2] + 1);
+    }
+  }
+  return d[al][bl];
+}
+// Palavras curtas aceitam menos erros (senão a pesquisa acharia coisa demais)
+function maxTypos(len) { return len <= 3 ? 0 : len <= 7 ? 1 : 2; }
+
+function scoreTextToken(token, words, haystack) {
+  let best = 0;
+  for (const w of words) {
+    if (w === token) best = Math.max(best, 100);
+    else if (w.startsWith(token)) best = Math.max(best, 80);
+  }
+  if (best) return best;
+  if (token.length >= 2 && haystack.includes(token)) return 60;
+  const tol = maxTypos(token.length);
+  if (tol > 0) {
+    for (const w of words) {
+      const dist = editDistance(token, w);
+      if (dist <= tol) best = Math.max(best, 45 - dist * 5);
+      else if (w.length > token.length) {
+        const distPrefix = editDistance(token, w.slice(0, token.length)); // digitou só o começo, com erro
+        if (distPrefix <= tol) best = Math.max(best, 30 - distPrefix * 5);
+      }
+    }
+  }
+  return best;
+}
+
+function parseDateToken(tok) {
+  let m = tok.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/);
+  if (m) {
+    const day = +m[1], month = +m[2];
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { day, month, year: m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : null };
+  }
+  m = tok.match(/^(\d{1,2})\/(\d{4})$/); // mês/ano, ex.: 10/2026
+  if (m && +m[1] >= 1 && +m[1] <= 12) return { day: null, month: +m[1], year: +m[2] };
+  return null;
+}
+
+function parseValueToken(tok) {
+  if (!/^\d[\d.,]*$/.test(tok)) return null;
+  const cents = parsePastedToCents(tok); // "50" = R$ 50,00 · "50,5" = R$ 50,50 · "1.234,56"
+  return Number.isNaN(cents) ? null : cents;
+}
+
+function parseSearchQuery(q) {
+  const raw = String(q).toLowerCase().replace(/r\$\s*/g, '').trim();
+  const tokens = [];
+  for (const tok of raw.split(/\s+/).filter(Boolean)) {
+    const date = parseDateToken(tok);
+    if (date) { tokens.push({ kind: 'date', ...date }); continue; }
+    const cents = parseValueToken(tok);
+    if (cents !== null) { tokens.push({ kind: 'value', cents, digits: tok.replace(/\D/g, '') }); continue; }
+    for (const word of normalizeText(tok).split(' ').filter(Boolean)) tokens.push({ kind: 'text', text: word });
+  }
+  return tokens;
+}
+
+function searchScore(tx, tokens) {
+  const words = normalizeText(tx.description + ' ' + tx.category).split(' ').filter(Boolean);
+  const haystack = words.join(' ');
+  let total = 0;
+  for (const tk of tokens) {
+    let s = 0;
+    if (tk.kind === 'date') {
+      const ok = (tk.day === null || tk.day === getDay(tx.date)) && tk.month === getMonth(tx.date) && (tk.year === null || tk.year === getYear(tx.date));
+      s = ok ? 100 : 0;
+    } else if (tk.kind === 'value') {
+      s = toCents(tx.value) === tk.cents ? 100 : (tk.digits && haystack.includes(tk.digits) ? 60 : 0);
+    } else {
+      s = scoreTextToken(tk.text, words, haystack);
+    }
+    if (!s) return 0; // todas as palavras digitadas precisam combinar
+    total += s;
+  }
+  return total;
+}
+
+// ---------- SUSPEITOS da conferência de saldo ----------
+// diferença = saldo do site − saldo do banco (em centavos). Procura lançamentos que explicariam a diferença:
+//  - valor igual à diferença (duplicado ou lançado a mais);
+//  - metade da diferença com o tipo trocado (trocar entrada/saída muda o saldo pelo DOBRO do valor).
+function getSuspectMap() {
+  const map = new Map();
+  if (CLOUD_MODE && !transactionsOk) return map;
+  const res = computeBalanceCheck();
+  if (!res || res.diffCents === 0) return map;
+  const diff = res.diffCents;
+  for (const t of transactions) {
+    const s = signedCents(t);
+    if (s === diff) map.set(t.id, 'Valor igual à diferença: pode estar duplicado ou lançado a mais.');
+    else if (diff % 2 === 0 && s === diff / 2) map.set(t.id, 'Pode estar com o tipo trocado (seria ' + (t.type === 'entrada' ? 'uma saída' : 'uma entrada') + ').');
+  }
+  return map;
+}
+
+function clearSearch() {
+  state.search = '';
+  state.suspectsOnly = false;
+  const input = document.getElementById('searchInput');
+  if (input) input.value = '';
+  const clr = document.getElementById('searchClearBtn');
+  if (clr) clr.classList.add('hidden');
+}
+
 function getTableRows() {
-  let rows = getFilteredRows();
-  if (state.typeFilter !== 'all') rows = rows.filter(t => t.type === state.typeFilter);
   const order = new Map(transactions.map((t, i) => [t.id, i]));
-  return rows.slice().sort((a, b) =>
+  const byDefault = (a, b) =>
     b.date.localeCompare(a.date) ||             // dia mais recente primeiro
     tsMs(b.created_at) - tsMs(a.created_at) ||  // no mesmo dia: o último lançamento salvo fica no topo
-    order.get(b.id) - order.get(a.id));         // empate total: mantém a ordem de carregamento
+    order.get(b.id) - order.get(a.id);          // empate total: mantém a ordem de carregamento
+
+  if (state.suspectsOnly) {
+    const suspects = getSuspectMap();
+    if (suspects.size > 0) return transactions.filter(t => suspects.has(t.id)).sort(byDefault);
+    state.suspectsOnly = false; // a diferença foi resolvida
+  }
+
+  const tokens = state.search.trim() ? parseSearchQuery(state.search) : [];
+  if (tokens.length) {
+    // Pesquisando: procura em TODOS os períodos (respeita só o filtro de entradas/saídas), mais certo primeiro
+    let base = transactions;
+    if (state.typeFilter !== 'all') base = base.filter(t => t.type === state.typeFilter);
+    return base.map(t => ({ t, s: searchScore(t, tokens) })).filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s || byDefault(a.t, b.t)).map(x => x.t);
+  }
+
+  let rows = getFilteredRows();
+  if (state.typeFilter !== 'all') rows = rows.filter(t => t.type === state.typeFilter);
+  return rows.slice().sort(byDefault);
+}
+
+function renderSearchSummary(rows) {
+  const el = document.getElementById('searchSummary');
+  const q = state.search.trim();
+  const searching = q && parseSearchQuery(q).length > 0;
+  const plural = (n, a, b) => n === 1 ? a : b;
+  if (state.suspectsOnly) {
+    el.innerHTML = `<span>Mostrando <strong>${rows.length}</strong> ${plural(rows.length, 'lançamento suspeito', 'lançamentos suspeitos')} da conferência (todos os períodos).</span>` +
+      `<button type="button" id="suspectsBackBtn" class="px-3 py-1 rounded-full bg-sidebar text-white font-semibold hover:brightness-110 transition-all">Voltar à lista</button>`;
+  } else if (searching) {
+    const ent = rows.filter(t => t.type === 'entrada').reduce((s, t) => s + toCents(t.value), 0);
+    const sai = rows.filter(t => t.type === 'saida').reduce((s, t) => s + toCents(t.value), 0);
+    el.innerHTML = `<span>Pesquisa por <strong>“${escapeHtml(q)}”</strong> em todos os períodos: <strong>${rows.length}</strong> ${plural(rows.length, 'encontrado', 'encontrados')}</span>` +
+      `<span class="text-muted tabular">Entradas ${formatCurrency(ent / 100)} · Saídas ${formatCurrency(sai / 100)}</span>`;
+  } else {
+    el.classList.add('hidden'); el.classList.remove('flex');
+    return;
+  }
+  el.classList.remove('hidden'); el.classList.add('flex');
 }
 
 function renderTable() {
   const rows = getTableRows();
   document.getElementById('tableCount').textContent = `${rows.length} lançamento${rows.length === 1 ? '' : 's'}`;
+  renderSearchSummary(rows);
+  const suspects = getSuspectMap();
   const tbody = document.getElementById('tableBody');
 
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-sm text-muted">Nenhum lançamento encontrado para este filtro.</td></tr>`;
+    const msg = state.search.trim() ? `Nenhum lançamento encontrado para “${escapeHtml(state.search.trim())}”.` : 'Nenhum lançamento encontrado para este filtro.';
+    tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-sm text-muted">${msg}</td></tr>`;
     return;
   }
 
@@ -557,6 +724,9 @@ function renderTable() {
     const catColor = getCategoryColor(t.category);
     const catStyle = `background-color:${hexToRgba(catColor, 0.14)}; color:${catColor};`;
     const isEntrada = t.type === 'entrada';
+    const suspectBadge = suspects.has(t.id)
+      ? `<span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800" title="${escapeHtml(suspects.get(t.id))}">suspeito</span>`
+      : '';
     const noteBtn = t.notes
       ? `<button data-action="toggle-note" data-id="${t.id}" title="Ver observação" class="text-muted hover:text-gold transition-colors shrink-0">${infoIcon}</button>`
       : '';
@@ -569,6 +739,7 @@ function renderTable() {
         <td class="px-4 py-3 text-sm">
           <div class="flex items-center gap-2">
             <span class="truncate max-w-[220px]">${escapeHtml(t.description)}</span>
+            ${suspectBadge}
             ${noteBtn}
           </div>
         </td>
@@ -873,9 +1044,11 @@ function closeModal() {
 
 // Se o filtro atual esconde o lançamento que acabou de ser editado, limpa os filtros para você ver o resultado.
 function ensureRowVisible(id) {
+  if (state.suspectsOnly && getSuspectMap().size > 0) return; // continua na lista de suspeitos
   if (!getTableRows().some(t => t.id === id)) {
     state.period = { year: 'all', month: 'all', week: 'all' };
     state.typeFilter = 'all';
+    clearSearch();
     renderAll();
   }
 }
@@ -931,6 +1104,7 @@ form.addEventListener('submit', async (e) => {
 
   state.period = { year: 'all', month: 'all', week: 'all' };
   state.typeFilter = 'all';
+  clearSearch();
 
   if (CLOUD_MODE) {
     submitBtn.disabled = true;
@@ -1009,8 +1183,13 @@ function renderBalanceStatus() {
     const more = res.diffCents > 0;
     document.getElementById('balanceBannerTitle').textContent =
       `O saldo do site está ${formatCurrency(Math.abs(res.diffCents) / 100)} a ${more ? 'mais' : 'menos'} que o banco.`;
-    document.getElementById('balanceBannerSub').textContent =
-      `Conferido em ${when}. Corrija o lançamento errado (botão de lápis) ou refaça a conferência.`;
+    const nSus = getSuspectMap().size;
+    document.getElementById('balanceBannerSub').textContent = nSus > 0
+      ? `Conferido em ${when}. ${nSus} ${nSus === 1 ? 'lançamento suspeito marcado' : 'lançamentos suspeitos marcados'} na lista. Corrija pelo botão de lápis.`
+      : `Conferido em ${when}. Nenhum lançamento suspeito óbvio: use “Conferir por dia” para achar onde a conta se afastou.`;
+    const susBtn = document.getElementById('balanceSuspectsBtn');
+    susBtn.textContent = `Ver suspeitos (${nSus})`;
+    susBtn.classList.toggle('hidden', nSus === 0);
     banner.classList.remove('hidden');
   }
 }
@@ -1022,6 +1201,7 @@ async function loadBalanceCheck() {
     if (error) console.warn('Conferência de saldo indisponível:', error.message); // ex.: tabela ainda não criada
     else if (data) balanceCheck = { bank_balance: Number(data.bank_balance), checked_at: data.checked_at };
   }
+  renderTable();
   renderBalanceStatus();
 }
 
@@ -1069,6 +1249,7 @@ function openBalanceModal() {
   setBankCents(0);
   document.getElementById('balanceSiteLine').textContent =
     'Saldo do site agora (todos os períodos): ' + formatCurrency(siteTotalCents() / 100);
+  resetDayCheck();
   balanceModal.classList.remove('opacity-0', 'pointer-events-none');
   balancePanel.classList.remove('scale-95', 'opacity-0');
   setTimeout(() => fieldBank.focus(), 50);
@@ -1103,6 +1284,7 @@ balanceForm.addEventListener('submit', async (e) => {
     balanceCheck = { bank_balance: bankCents / 100, checked_at: new Date().toISOString() };
   }
   closeBalanceModal();
+  renderTable();
   renderBalanceStatus();
 });
 
@@ -1111,6 +1293,92 @@ document.getElementById('balanceRecheckBtn').addEventListener('click', openBalan
 document.getElementById('balanceCloseBtn').addEventListener('click', closeBalanceModal);
 document.getElementById('balanceCancelBtn').addEventListener('click', closeBalanceModal);
 document.getElementById('balanceBackdrop').addEventListener('click', closeBalanceModal);
+
+// ---------- Conferir por dia (só consulta, não grava nada) ----------
+function makeMoneyMask(input, onChange) {
+  let cents = 0;
+  const set = (c) => {
+    cents = Math.max(0, Math.min(c, MAX_CENTS));
+    input.value = cents > 0 ? formatBRL(cents) : '';
+    onChange(cents);
+  };
+  input.addEventListener('input', () => {
+    const digits = input.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 12);
+    set(digits ? parseInt(digits, 10) : 0);
+  });
+  input.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const c = parsePastedToCents((e.clipboardData || window.clipboardData).getData('text'));
+    if (!Number.isNaN(c)) set(c);
+  });
+  return { get: () => cents, set };
+}
+
+const dayDateInput = document.getElementById('dayDate');
+const dayCompareBtn = document.getElementById('dayCompareBtn');
+const dayResult = document.getElementById('dayResult');
+
+function updateDayForm() {
+  const ok = !!dayDateInput.value && dayMask.get() > 0;
+  dayCompareBtn.disabled = !ok;
+  dayCompareBtn.className = 'mt-3 w-full py-2 rounded-xl text-sm font-semibold transition-all ' +
+    (ok ? 'text-white bg-gold hover:brightness-95' : 'text-white/80 bg-[#C9C6BE] cursor-not-allowed');
+  dayResult.textContent = '';
+}
+const dayMask = makeMoneyMask(document.getElementById('dayBank'), updateDayForm);
+dayDateInput.addEventListener('input', updateDayForm);
+dayDateInput.addEventListener('change', updateDayForm);
+
+function resetDayCheck() {
+  document.getElementById('dayCheck').open = false;
+  dayDateInput.value = '';
+  dayMask.set(0);
+}
+
+dayCompareBtn.addEventListener('click', () => {
+  const date = dayDateInput.value, bank = dayMask.get();
+  if (!date || bank <= 0) return;
+  if (CLOUD_MODE && !transactionsOk) {
+    dayResult.className = 'text-sm mt-3 min-h-[1rem] text-loss font-medium';
+    dayResult.textContent = 'Os lançamentos não carregaram. Atualize a página e tente de novo.';
+    return;
+  }
+  const site = transactions.reduce((sum, t) => t.date <= date ? sum + signedCents(t) : sum, 0);
+  const diff = site - bank;
+  const dataBr = formatDate(date);
+  if (diff === 0) {
+    dayResult.className = 'text-sm mt-3 min-h-[1rem] text-gain font-medium';
+    dayResult.textContent = `✓ Até ${dataBr} o site soma ${formatCurrency(site / 100)} e bate com o banco. Se houver erro, ele está depois dessa data.`;
+  } else {
+    dayResult.className = 'text-sm mt-3 min-h-[1rem] text-loss font-medium';
+    dayResult.textContent = `Até ${dataBr} o site soma ${formatCurrency(site / 100)} e o banco mostrava ${formatCurrency(bank / 100)}: ` +
+      `${formatCurrency(Math.abs(diff) / 100)} a ${diff > 0 ? 'mais' : 'menos'} no site. O erro está nessa data ou antes dela. Tente uma data anterior.`;
+  }
+});
+
+// ---------- Eventos: suspeitos e pesquisa ----------
+document.getElementById('balanceSuspectsBtn').addEventListener('click', () => {
+  clearSearch();
+  state.suspectsOnly = true;
+  renderTable();
+  document.getElementById('tableSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.getElementById('searchSummary').addEventListener('click', (e) => {
+  if (e.target.closest('#suspectsBackBtn')) { state.suspectsOnly = false; renderTable(); }
+});
+
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', () => {
+  state.search = searchInput.value;
+  state.suspectsOnly = false; // pesquisar assume o lugar da lista de suspeitos
+  document.getElementById('searchClearBtn').classList.toggle('hidden', !searchInput.value);
+  renderTable();
+});
+document.getElementById('searchClearBtn').addEventListener('click', () => {
+  clearSearch();
+  renderTable();
+  searchInput.focus();
+});
 
 // ============================================================
 // EVENT LISTENERS: AUTENTICAÇÃO
