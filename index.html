@@ -291,7 +291,7 @@
   <div id="modalBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
   <div class="modal-panel relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-200">
     <div class="flex items-center justify-between mb-5">
-      <h2 class="font-display font-semibold text-lg">Novo lançamento</h2>
+      <h2 id="modalTitle" class="font-display font-semibold text-lg">Novo lançamento</h2>
       <button id="modalCloseBtn" class="text-muted hover:text-ink p-1" aria-label="Fechar">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -335,6 +335,18 @@
       <div class="flex gap-3 pt-2">
         <button type="button" id="modalCancelBtn" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted bg-[#F0EFEC] hover:bg-[#E7E5E0] transition-colors">Cancelar</button>
         <button type="submit" id="modalSubmitBtn" disabled class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Salvar lançamento</button>
+      </div>
+
+      <!-- Área de exclusão: só aparece ao editar um lançamento -->
+      <div id="deleteArea" class="hidden pt-1">
+        <button type="button" id="deleteTriggerBtn" class="w-full py-2 rounded-xl text-sm font-semibold text-loss hover:bg-lossbg transition-colors">Excluir lançamento</button>
+        <div id="deleteConfirm" class="hidden rounded-xl bg-lossbg p-3">
+          <p class="text-sm text-loss font-medium mb-3">Excluir este lançamento? Essa ação não pode ser desfeita.</p>
+          <div class="flex gap-3">
+            <button type="button" id="deleteCancelBtn" class="flex-1 py-2 rounded-xl text-sm font-semibold text-muted bg-white hover:bg-[#F0EFEC] transition-colors">Voltar</button>
+            <button type="button" id="deleteConfirmBtn" class="flex-1 py-2 rounded-xl text-sm font-semibold text-white bg-loss hover:brightness-95 transition-all">Sim, excluir</button>
+          </div>
+        </div>
       </div>
     </form>
   </div>
