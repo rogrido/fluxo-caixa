@@ -91,9 +91,6 @@ async function handleAuthenticated(user) {
   await loadCategories();
   populateCategorySelect();
   renderCategoryList();
-  await loadInvestments();
-  renderInvestmentsList();
-  switchView('dashboard');
   await loadTransactions();
 }
 
@@ -193,21 +190,6 @@ const SEED_DATA = [
 let transactions = CLOUD_MODE ? [] : SEED_DATA.map(t => ({ id: uid(), ...t }));
 if (!CLOUD_MODE) categories = DEMO_CATEGORIES.map(c => ({ id: uid(), ...c }));
 
-// Investimentos: cada item tem uma taxa de rendimento e uma lista de aportes.
-// O valor atual de cada aporte é sempre CALCULADO na hora (juros compostos), nunca armazenado.
-let investments = [];
-if (!CLOUD_MODE) {
-  investments = [
-    {
-      id: uid(), name: 'CDB Banco Demo', rate_type: 'monthly', rate_value: 0.9,
-      contributions: [
-        { id: uid(), amount: 1000, date: '2026-01-15' },
-        { id: uid(), amount: 500, date: '2026-04-10' },
-      ],
-    },
-  ];
-}
-
 // ============================================================
 // ESTADO
 // ============================================================
@@ -216,7 +198,7 @@ const state = {
   typeFilter: 'all',   // 'all' | 'entrada' | 'saida'
   chartMode: 'category', // 'category' | 'weekly'
 };
-let modalType = 'saida';
+let modalType = null; // nenhum tipo pré-selecionado: você precisa escolher entrada ou saída
 let chartInstance = null;
 
 // ============================================================
@@ -384,99 +366,6 @@ async function removeCategory(id) {
     if (error) { showBanner('error', 'Erro ao excluir categoria: ' + error.message); return false; }
   }
   categories = categories.filter(c => c.id !== id);
-  return true;
-}
-
-// ============================================================
-// CAMADA DE DADOS E CÁLCULO: INVESTIMENTOS
-// ============================================================
-
-// Converte a taxa cadastrada (mensal ou anual) numa taxa mensal equivalente.
-function monthlyRateOf(inv) {
-  return inv.rate_type === 'annual' ? Math.pow(1 + inv.rate_value / 100, 1 / 12) - 1 : inv.rate_value / 100;
-}
-
-// Valor atual de UM aporte, rendendo juros compostos dia a dia desde a data em que entrou.
-function currentValueOfContribution(amount, monthlyRate, startDate, asOf = new Date()) {
-  const dailyRate = Math.pow(1 + monthlyRate, 1 / 30.4368) - 1; // 30.4368 = média de dias por mês
-  const start = new Date(startDate + 'T00:00:00');
-  const days = Math.max(0, (asOf - start) / 86400000);
-  return amount * Math.pow(1 + dailyRate, days);
-}
-
-// Soma de todos os aportes de um investimento: quanto entrou vs. quanto vale agora.
-function investmentTotals(inv) {
-  const monthlyRate = monthlyRateOf(inv);
-  const aportado = inv.contributions.reduce((s, c) => s + c.amount, 0);
-  const atual = inv.contributions.reduce((s, c) => s + currentValueOfContribution(c.amount, monthlyRate, c.date), 0);
-  return { aportado, atual, rendimento: atual - aportado };
-}
-
-// Previsão: "se eu deixar mais X meses, deve valer aproximadamente..."
-function projectedValue(inv, months) {
-  const { atual } = investmentTotals(inv);
-  return atual * Math.pow(1 + monthlyRateOf(inv), months);
-}
-
-async function loadInvestments() {
-  if (!CLOUD_MODE) return; // modo demonstração já tem investimentos fixos em memória
-
-  const { data: invData, error: invError } = await db.from('investments').select('*').order('created_at', { ascending: true });
-  if (invError) { showBanner('error', 'Não foi possível carregar os investimentos: ' + invError.message); investments = []; return; }
-
-  const { data: contribData, error: contribError } = await db.from('investment_contributions').select('*');
-  if (contribError) { showBanner('error', 'Não foi possível carregar os aportes: ' + contribError.message); investments = []; return; }
-
-  investments = (invData || []).map(inv => ({
-    ...inv,
-    rate_value: Number(inv.rate_value),
-    contributions: (contribData || [])
-      .filter(c => c.investment_id === inv.id)
-      .map(c => ({ ...c, amount: Number(c.amount) })),
-  }));
-}
-
-async function addInvestment(name, rateType, rateValue) {
-  if (CLOUD_MODE) {
-    const { data, error } = await db.from('investments').insert([{ name, rate_type: rateType, rate_value: rateValue }]).select();
-    if (error) { showBanner('error', 'Erro ao adicionar investimento: ' + error.message); return false; }
-    investments.push({ ...data[0], rate_value: Number(data[0].rate_value), contributions: [] });
-  } else {
-    investments.push({ id: uid(), name, rate_type: rateType, rate_value: rateValue, contributions: [] });
-  }
-  return true;
-}
-
-async function removeInvestment(id) {
-  if (CLOUD_MODE) {
-    const { error } = await db.from('investments').delete().eq('id', id);
-    if (error) { showBanner('error', 'Erro ao excluir investimento: ' + error.message); return false; }
-  }
-  investments = investments.filter(inv => inv.id !== id);
-  return true;
-}
-
-async function addContribution(investmentId, amount, date) {
-  const inv = investments.find(i => i.id === investmentId);
-  if (!inv) return false;
-  if (CLOUD_MODE) {
-    const { data, error } = await db.from('investment_contributions').insert([{ investment_id: investmentId, amount, date }]).select();
-    if (error) { showBanner('error', 'Erro ao adicionar aporte: ' + error.message); return false; }
-    inv.contributions.push({ ...data[0], amount: Number(data[0].amount) });
-  } else {
-    inv.contributions.push({ id: uid(), investment_id: investmentId, amount, date });
-  }
-  return true;
-}
-
-async function removeContribution(investmentId, contributionId) {
-  const inv = investments.find(i => i.id === investmentId);
-  if (!inv) return false;
-  if (CLOUD_MODE) {
-    const { error } = await db.from('investment_contributions').delete().eq('id', contributionId);
-    if (error) { showBanner('error', 'Erro ao excluir aporte: ' + error.message); return false; }
-  }
-  inv.contributions = inv.contributions.filter(c => c.id !== contributionId);
   return true;
 }
 
@@ -826,108 +715,6 @@ function renderCategoryList() {
   `).join('');
 }
 
-// ============================================================
-// RENDER: Investimentos
-// ============================================================
-function renderInvestmentsKpi() {
-  const total = investments.reduce((s, inv) => s + investmentTotals(inv).atual, 0);
-  document.getElementById('kpiInvestidoValue').textContent = formatCurrency(total);
-  document.getElementById('kpiInvestidoSub').textContent = `${investments.length} investimento(s)`;
-}
-
-function renderInvestmentsList() {
-  const container = document.getElementById('investmentList');
-  const emptyState = document.getElementById('investmentEmptyState');
-
-  if (investments.length === 0) {
-    container.innerHTML = '';
-    emptyState.classList.remove('hidden');
-    renderInvestmentsKpi();
-    return;
-  }
-  emptyState.classList.add('hidden');
-
-  container.innerHTML = investments.map(inv => {
-    const { aportado, atual, rendimento } = investmentTotals(inv);
-    const rendPct = aportado > 0 ? (rendimento / aportado) * 100 : 0;
-    const rateLabel = inv.rate_type === 'annual' ? `${inv.rate_value}% a.a.` : `${inv.rate_value}% a.m.`;
-
-    const contribRows = inv.contributions.slice().sort((a, b) => b.date.localeCompare(a.date)).map(c => `
-      <div class="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-[#F0EFEC] last:border-0">
-        <span class="text-muted">${formatDate(c.date)}</span>
-        <span class="font-medium tabular">${formatCurrency(c.amount)}</span>
-        <button type="button" data-action="delete-contribution" data-investment-id="${inv.id}" data-contribution-id="${c.id}" title="Excluir aporte" class="text-muted hover:text-loss transition-colors shrink-0">${trashIcon}</button>
-      </div>
-    `).join('') || '<p class="text-xs text-muted py-2">Nenhum aporte registrado ainda.</p>';
-
-    return `
-    <div class="border border-[#EEECE7] rounded-xl p-4" data-investment-card="${inv.id}">
-      <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
-        <div>
-          <p class="font-display font-semibold text-sm">${escapeHtml(inv.name)}</p>
-          <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EAF2F5] text-[#3E7C90]">${rateLabel}</span>
-        </div>
-        <button type="button" data-action="delete-investment" data-id="${inv.id}" data-name="${escapeHtml(inv.name)}" title="Excluir investimento" class="text-muted hover:text-loss transition-colors shrink-0">${trashIcon}</button>
-      </div>
-
-      <div class="grid grid-cols-3 gap-3 mb-4">
-        <div>
-          <p class="text-[11px] text-muted">Aportado</p>
-          <p class="text-sm font-semibold tabular">${formatCurrency(aportado)}</p>
-        </div>
-        <div>
-          <p class="text-[11px] text-muted">Valor atual</p>
-          <p class="text-sm font-semibold tabular text-[#3E7C90]">${formatCurrency(atual)}</p>
-        </div>
-        <div>
-          <p class="text-[11px] text-muted">Rendimento</p>
-          <p class="text-sm font-semibold tabular text-gain">+${formatCurrency(rendimento)} <span class="text-[11px] font-normal">(${rendPct.toFixed(1)}%)</span></p>
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2 mb-3 bg-[#FAF9F7] rounded-lg px-3 py-2">
-        <span class="text-xs text-muted">Daqui a</span>
-        <input type="number" data-role="projection-months" data-id="${inv.id}" min="1" step="1" value="12" class="w-16 px-2 py-1 rounded-lg border border-[#E7E5E0] text-xs text-center focus-visible:ring-2 focus-visible:ring-gold/40" />
-        <span class="text-xs text-muted">meses, deve valer</span>
-        <span data-role="projection-result" data-id="${inv.id}" class="text-xs font-semibold text-gold">${formatCurrency(projectedValue(inv, 12))}</span>
-      </div>
-
-      <details class="mb-3">
-        <summary class="text-xs font-medium text-muted cursor-pointer hover:text-ink select-none">Ver aportes (${inv.contributions.length})</summary>
-        <div class="mt-2">${contribRows}</div>
-      </details>
-
-      <form data-action="add-contribution" data-id="${inv.id}" class="flex flex-wrap gap-2 items-end pt-2 border-t border-[#F0EFEC]">
-        <div>
-          <label class="block text-[11px] text-muted mb-1">Novo aporte (R$)</label>
-          <input type="number" required min="0.01" step="0.01" data-role="contribution-amount" placeholder="0,00" class="w-28 px-2.5 py-1.5 rounded-lg border border-[#E7E5E0] text-xs focus-visible:ring-2 focus-visible:ring-gold/40" />
-        </div>
-        <div>
-          <label class="block text-[11px] text-muted mb-1">Data</label>
-          <input type="date" required data-role="contribution-date" value="${new Date().toISOString().slice(0, 10)}" class="px-2.5 py-1.5 rounded-lg border border-[#E7E5E0] text-xs focus-visible:ring-2 focus-visible:ring-gold/40" />
-        </div>
-        <button type="submit" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-gold hover:brightness-95 transition-all">+ Aporte</button>
-      </form>
-    </div>`;
-  }).join('');
-
-  renderInvestmentsKpi();
-}
-
-// ============================================================
-// SIMULADOR DE INVESTIMENTOS (hipotético, não afeta dados reais)
-// ============================================================
-function simulateInvestment(initial, monthlyContribution, monthlyRate, months) {
-  let value = initial;
-  let contributed = initial;
-  for (let i = 0; i < months; i++) {
-    value *= (1 + monthlyRate);
-    value += monthlyContribution;
-    contributed += monthlyContribution;
-  }
-  return { value, contributed, interest: value - contributed };
-}
-
 function setModalType(type) {
   modalType = type;
   const base = 'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors border';
@@ -935,12 +722,79 @@ function setModalType(type) {
   const saidaBtn = document.getElementById('btnTipoSaida');
   entradaBtn.className = base + (type === 'entrada' ? ' bg-gain text-white border-gain' : ' bg-white text-muted border-[#E7E5E0] hover:border-gain/50');
   saidaBtn.className = base + (type === 'saida' ? ' bg-loss text-white border-loss' : ' bg-white text-muted border-[#E7E5E0] hover:border-loss/50');
+  updateFormState();
+}
+
+// ---------- Campo de valor: os 2 últimos dígitos são sempre centavos ----------
+const fieldValue = document.getElementById('fieldValue');
+const MAX_CENTS = 999999999999; // 12 dígitos
+let valueCents = 0; // valor em centavos inteiros (sem arredondamento)
+
+function formatBRL(cents) {
+  return 'R$ ' + (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function setValueCents(cents) {
+  valueCents = Math.max(0, Math.min(cents, MAX_CENTS));
+  fieldValue.value = valueCents > 0 ? formatBRL(valueCents) : '';
+  updateFormState();
+}
+
+// Valor colado (ex.: "R$ 1.234,56" copiado do banco): respeita a vírgula/ponto dos centavos.
+function parsePastedToCents(text) {
+  const cleaned = String(text).replace(/[^\d.,]/g, '');
+  if (!cleaned) return NaN;
+  const m = cleaned.match(/^(.*)[.,](\d{1,2})$/);
+  if (m) return parseInt((m[1].replace(/\D/g, '') || '0') + m[2].padEnd(2, '0'), 10);
+  return parseInt(cleaned.replace(/\D/g, ''), 10) * 100; // sem centavos: tratado como reais inteiros
+}
+
+fieldValue.addEventListener('input', () => {
+  const digits = fieldValue.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 12);
+  setValueCents(digits ? parseInt(digits, 10) : 0);
+});
+fieldValue.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  const cents = parsePastedToCents(text);
+  if (!Number.isNaN(cents)) setValueCents(cents);
+});
+
+// ---------- Data por extenso e estado do botão Salvar ----------
+function formatDateLong(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  return new Date(y, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function updateFormState() {
+  const date = document.getElementById('fieldDate').value;
+  document.getElementById('dateLong').textContent = formatDateLong(date);
+
+  const missing = [];
+  if (!modalType) missing.push('tipo (entrada ou saída)');
+  if (!date) missing.push('data');
+  if (valueCents <= 0) missing.push('valor');
+  const ok = missing.length === 0;
+
+  const btn = document.getElementById('modalSubmitBtn');
+  const base = 'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ';
+  btn.disabled = !ok;
+  if (ok) {
+    btn.className = base + 'text-white hover:brightness-95 ' + (modalType === 'entrada' ? 'bg-gain' : 'bg-loss');
+    btn.textContent = modalType === 'entrada' ? 'Salvar entrada' : 'Salvar saída';
+  } else {
+    btn.className = base + 'text-white/80 bg-[#C9C6BE] cursor-not-allowed';
+    btn.textContent = 'Salvar lançamento';
+  }
+  document.getElementById('formPending').textContent = ok ? '' : 'Falta preencher: ' + missing.join(', ');
 }
 
 function openModal() {
-  form.reset();
-  document.getElementById('fieldDate').value = new Date().toISOString().slice(0, 10);
-  setModalType('saida');
+  form.reset();           // data e valor começam vazios
+  valueCents = 0;
+  setModalType(null);     // nenhum tipo marcado (também atualiza o botão Salvar)
   modal.classList.remove('opacity-0', 'pointer-events-none');
   modalPanel.classList.remove('scale-95', 'opacity-0');
   setTimeout(() => document.getElementById('fieldDescription').focus(), 50);
@@ -965,6 +819,7 @@ function highlightRow(id) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!form.checkValidity()) { form.reportValidity(); return; }
+  if (!modalType || valueCents <= 0) { updateFormState(); return; } // trava extra: tipo e valor são obrigatórios
   const submitBtn = form.querySelector('button[type="submit"]');
   const originalLabel = submitBtn.textContent;
 
@@ -973,7 +828,7 @@ form.addEventListener('submit', async (e) => {
     description: document.getElementById('fieldDescription').value.trim(),
     category: document.getElementById('fieldCategory').value,
     type: modalType,
-    value: parseFloat(document.getElementById('fieldValue').value),
+    value: valueCents / 100, // vem de centavos inteiros, sem arredondar
     notes: document.getElementById('fieldNotes').value.trim(),
   };
 
@@ -1053,7 +908,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   currentUser = null;
   transactions = [];
   categories = [];
-  investments = [];
   document.getElementById('authForm').reset();
   showAuthScreen();
 });
@@ -1101,109 +955,6 @@ document.getElementById('categoryList').addEventListener('click', async (e) => {
   renderCategoryList();
   renderTable();
   renderChart();
-});
-
-// ============================================================
-// EVENT LISTENERS: INVESTIMENTOS
-// ============================================================
-document.getElementById('investmentForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const nameInput = document.getElementById('investmentName');
-  const rateValueInput = document.getElementById('investmentRateValue');
-  const rateTypeInput = document.getElementById('investmentRateType');
-  const name = nameInput.value.trim();
-  const rateValue = parseFloat(rateValueInput.value);
-  const rateType = rateTypeInput.value;
-  if (!name || isNaN(rateValue)) return;
-
-  const submitBtn = document.getElementById('investmentSubmitBtn');
-  submitBtn.disabled = true;
-  const ok = await addInvestment(name, rateType, rateValue);
-  submitBtn.disabled = false;
-  if (!ok) return;
-
-  nameInput.value = '';
-  rateValueInput.value = '';
-  renderInvestmentsList();
-});
-
-document.getElementById('investmentList').addEventListener('click', async (e) => {
-  const delInvBtn = e.target.closest('[data-action="delete-investment"]');
-  if (delInvBtn) {
-    const confirmed = confirm(`Excluir "${delInvBtn.dataset.name}" e todo o histórico de aportes dele? Essa ação não pode ser desfeita.`);
-    if (!confirmed) return;
-    delInvBtn.disabled = true;
-    const ok = await removeInvestment(delInvBtn.dataset.id);
-    if (!ok) { delInvBtn.disabled = false; return; }
-    renderInvestmentsList();
-    return;
-  }
-
-  const delContribBtn = e.target.closest('[data-action="delete-contribution"]');
-  if (delContribBtn) {
-    delContribBtn.disabled = true;
-    const ok = await removeContribution(delContribBtn.dataset.investmentId, delContribBtn.dataset.contributionId);
-    if (!ok) { delContribBtn.disabled = false; return; }
-    renderInvestmentsList();
-  }
-});
-
-document.getElementById('investmentList').addEventListener('submit', async (e) => {
-  const form = e.target.closest('[data-action="add-contribution"]');
-  if (!form) return;
-  e.preventDefault();
-  const amountInput = form.querySelector('[data-role="contribution-amount"]');
-  const dateInput = form.querySelector('[data-role="contribution-date"]');
-  const amount = parseFloat(amountInput.value);
-  const date = dateInput.value;
-  if (isNaN(amount) || amount <= 0 || !date) return;
-
-  const submitBtn = form.querySelector('button[type="submit"]');
-  submitBtn.disabled = true;
-  const ok = await addContribution(form.dataset.id, amount, date);
-  submitBtn.disabled = false;
-  if (!ok) return;
-  renderInvestmentsList();
-});
-
-document.getElementById('investmentList').addEventListener('input', (e) => {
-  const input = e.target.closest('[data-role="projection-months"]');
-  if (!input) return;
-  const inv = investments.find(i => i.id === input.dataset.id);
-  if (!inv) return;
-  const months = Math.max(1, parseInt(input.value) || 1);
-  const resultEl = document.querySelector(`[data-role="projection-result"][data-id="${input.dataset.id}"]`);
-  if (resultEl) resultEl.textContent = formatCurrency(projectedValue(inv, months));
-});
-
-document.getElementById('simulatorForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const initial = parseFloat(document.getElementById('simInitial').value) || 0;
-  const monthlyContribution = parseFloat(document.getElementById('simMonthly').value) || 0;
-  const rateValue = parseFloat(document.getElementById('simRateValue').value);
-  const rateType = document.getElementById('simRateType').value;
-  const months = parseInt(document.getElementById('simMonths').value);
-  if (isNaN(rateValue) || isNaN(months) || months < 1) return;
-
-  const monthlyRate = rateType === 'annual' ? Math.pow(1 + rateValue / 100, 1 / 12) - 1 : rateValue / 100;
-  const { value, contributed, interest } = simulateInvestment(initial, monthlyContribution, monthlyRate, months);
-
-  const resultEl = document.getElementById('simulatorResult');
-  resultEl.classList.remove('hidden');
-  resultEl.innerHTML = `
-    <div class="bg-[#F5F4F1] rounded-xl p-4">
-      <p class="text-xs text-muted">Total investido</p>
-      <p class="font-display font-bold text-lg mt-1 tabular">${formatCurrency(contributed)}</p>
-    </div>
-    <div class="bg-gainbg rounded-xl p-4">
-      <p class="text-xs text-muted">Rendimento no período</p>
-      <p class="font-display font-bold text-lg mt-1 tabular text-gain">+${formatCurrency(interest)}</p>
-    </div>
-    <div class="bg-goldlight rounded-xl p-4">
-      <p class="text-xs text-muted">Valor final</p>
-      <p class="font-display font-bold text-lg mt-1 tabular text-[#7A5A2E]">${formatCurrency(value)}</p>
-    </div>
-  `;
 });
 
 // ============================================================
@@ -1259,6 +1010,8 @@ document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 document.getElementById('modalBackdrop').addEventListener('click', closeModal);
 document.getElementById('btnTipoEntrada').addEventListener('click', () => setModalType('entrada'));
 document.getElementById('btnTipoSaida').addEventListener('click', () => setModalType('saida'));
+document.getElementById('fieldDate').addEventListener('input', updateFormState);
+document.getElementById('fieldDate').addEventListener('change', updateFormState);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !modal.classList.contains('pointer-events-none')) closeModal();
 });
@@ -1271,28 +1024,7 @@ function closeSidebar() { sidebar.classList.add('-translate-x-full'); overlay.cl
 document.getElementById('hamburgerBtn').addEventListener('click', openSidebar);
 document.getElementById('closeSidebarBtn').addEventListener('click', closeSidebar);
 overlay.addEventListener('click', closeSidebar);
-// Navegação entre views (Painel, Configurações, Investimentos)
-const VIEW_IDS = { dashboard: 'topo', config: 'configSection', investments: 'investmentsSection' };
-
-function switchView(view) {
-  Object.values(VIEW_IDS).forEach(id => document.getElementById(id).classList.add('hidden'));
-  document.getElementById(VIEW_IDS[view] || VIEW_IDS.dashboard).classList.remove('hidden');
-  document.querySelectorAll('.nav-link').forEach(link => {
-    const active = link.dataset.view === view;
-    link.classList.toggle('bg-sidebarhover', active);
-    link.classList.toggle('text-white', active);
-  });
-  document.querySelector('main').scrollTo({ top: 0 });
-}
-
-document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', (e) => {
-  e.preventDefault();
-  switchView(link.dataset.view);
-  if (link.dataset.scrollTo) {
-    requestAnimationFrame(() => {
-      document.getElementById(link.dataset.scrollTo).scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
+document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', () => {
   if (window.innerWidth < 1024) closeSidebar();
 }));
 
@@ -1311,8 +1043,6 @@ async function init() {
     document.getElementById('appShell').classList.remove('hidden');
     populateCategorySelect();
     renderCategoryList();
-    renderInvestmentsList();
-    switchView('dashboard');
     renderAll();
     return;
   }
@@ -1329,7 +1059,6 @@ async function init() {
       currentUser = null;
       transactions = [];
       categories = [];
-      investments = [];
       showAuthScreen();
     }
   });
