@@ -199,6 +199,7 @@ const state = {
   chartMode: 'category', // 'category' | 'weekly'
 };
 let modalType = null; // nenhum tipo pré-selecionado: você precisa escolher entrada ou saída
+let editingId = null; // id do lançamento em edição (null = criando um novo)
 let chartInstance = null;
 
 // ============================================================
@@ -310,8 +311,19 @@ async function insertTransactionRemote(tx) {
 }
 
 async function deleteTransactionRemote(id) {
-  const { error } = await db.from('transactions').delete().eq('id', id);
+  const { data, error } = await db.from('transactions').delete().eq('id', id).select();
   if (error) { showBanner('error', 'Erro ao excluir na nuvem: ' + error.message); return false; }
+  if (!data || data.length === 0) { showBanner('error', 'Não foi possível excluir: o lançamento não foi encontrado ou você não tem permissão.'); return false; }
+  return true;
+}
+
+async function updateTransactionRemote(id, tx) {
+  const { data, error } = await db.from('transactions').update({
+    date: tx.date, description: tx.description, category: tx.category, type: tx.type, value: tx.value, notes: tx.notes
+  }).eq('id', id).select();
+  if (error) { showBanner('error', 'Erro ao salvar alterações na nuvem: ' + error.message); return false; }
+  // Com as regras de segurança do Supabase, um update sem permissão não dá erro: apenas não altera nada.
+  if (!data || data.length === 0) { showBanner('error', 'Não foi possível salvar: o lançamento não foi encontrado ou você não tem permissão para alterá-lo.'); return false; }
   return true;
 }
 
@@ -507,6 +519,8 @@ function renderChartTabs() {
 const trashIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>`;
 const infoIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.5" x2="12" y2="7.5"/></svg>`;
 
+const editIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+
 function getTableRows() {
   let rows = getFilteredRows();
   if (state.typeFilter !== 'all') rows = rows.filter(t => t.type === state.typeFilter);
@@ -554,7 +568,7 @@ function renderTable() {
         <td class="px-4 py-3 text-sm font-semibold whitespace-nowrap tabular ${isEntrada ? 'text-gain' : 'text-loss'}">${isEntrada ? '+ ' : '− '}${formatCurrency(t.value)}</td>
         <td class="px-4 py-3 text-sm text-muted whitespace-nowrap">Semana ${weekOfMonth(t.date)}</td>
         <td class="px-4 py-3 text-sm text-right">
-          <button data-action="delete" data-id="${t.id}" title="Excluir lançamento" class="text-muted hover:text-loss transition-colors">${trashIcon}</button>
+          <button data-action="edit" data-id="${t.id}" title="Editar lançamento" aria-label="Editar lançamento" class="text-muted hover:text-gold transition-colors">${editIcon}</button>
         </td>
       </tr>
       ${noteRow}`;
@@ -783,26 +797,70 @@ function updateFormState() {
   btn.disabled = !ok;
   if (ok) {
     btn.className = base + 'text-white hover:brightness-95 ' + (modalType === 'entrada' ? 'bg-gain' : 'bg-loss');
-    btn.textContent = modalType === 'entrada' ? 'Salvar entrada' : 'Salvar saída';
+    btn.textContent = editingId ? 'Salvar alterações' : (modalType === 'entrada' ? 'Salvar entrada' : 'Salvar saída');
   } else {
     btn.className = base + 'text-white/80 bg-[#C9C6BE] cursor-not-allowed';
-    btn.textContent = 'Salvar lançamento';
+    btn.textContent = editingId ? 'Salvar alterações' : 'Salvar lançamento';
   }
-  document.getElementById('formPending').textContent = ok ? '' : 'Falta preencher: ' + missing.join(', ');
+  const pending = document.getElementById('formPending');
+  pending.className = 'text-xs text-muted text-center min-h-[1rem]';
+  pending.textContent = ok ? '' : 'Falta preencher: ' + missing.join(', ');
 }
 
-function openModal() {
+function showFormError(msg) {
+  const pending = document.getElementById('formPending');
+  pending.className = 'text-xs text-loss font-medium text-center min-h-[1rem]';
+  pending.textContent = msg;
+}
+
+function resetDeleteConfirm() {
+  document.getElementById('deleteTriggerBtn').classList.remove('hidden');
+  document.getElementById('deleteConfirm').classList.add('hidden');
+}
+
+// openModal()    -> novo lançamento (tudo vazio)
+// openModal(tx)  -> editar o lançamento tx (campos já preenchidos)
+function openModal(tx) {
+  editingId = tx ? tx.id : null;
   form.reset();           // data e valor começam vazios
   valueCents = 0;
-  setModalType(null);     // nenhum tipo marcado (também atualiza o botão Salvar)
+  populateCategorySelect(); // refaz a lista (remove categoria temporária de uma edição anterior)
+  document.getElementById('modalTitle').textContent = tx ? 'Editar lançamento' : 'Novo lançamento';
+  document.getElementById('deleteArea').classList.toggle('hidden', !tx);
+  resetDeleteConfirm();
+
+  if (tx) {
+    const select = document.getElementById('fieldCategory');
+    if (![...select.options].some(o => o.value === tx.category)) {
+      select.add(new Option(tx.category, tx.category)); // categoria que foi excluída depois: mantém a do lançamento
+    }
+    document.getElementById('fieldDescription').value = tx.description;
+    document.getElementById('fieldDate').value = tx.date;
+    select.value = tx.category;
+    document.getElementById('fieldNotes').value = tx.notes || '';
+    setValueCents(Math.round(tx.value * 100));
+    setModalType(tx.type);
+  } else {
+    setModalType(null);   // nenhum tipo marcado (também atualiza o botão Salvar)
+  }
+
   modal.classList.remove('opacity-0', 'pointer-events-none');
   modalPanel.classList.remove('scale-95', 'opacity-0');
-  setTimeout(() => document.getElementById('fieldDescription').focus(), 50);
+  if (!tx) setTimeout(() => document.getElementById('fieldDescription').focus(), 50);
 }
 function closeModal() {
   modal.classList.add('opacity-0');
   modalPanel.classList.add('scale-95', 'opacity-0');
   setTimeout(() => modal.classList.add('pointer-events-none'), 200);
+}
+
+// Se o filtro atual esconde o lançamento que acabou de ser editado, limpa os filtros para você ver o resultado.
+function ensureRowVisible(id) {
+  if (!getTableRows().some(t => t.id === id)) {
+    state.period = { year: 'all', month: 'all', week: 'all' };
+    state.typeFilter = 'all';
+    renderAll();
+  }
 }
 
 function highlightRow(id) {
@@ -831,6 +889,28 @@ form.addEventListener('submit', async (e) => {
     value: valueCents / 100, // vem de centavos inteiros, sem arredondar
     notes: document.getElementById('fieldNotes').value.trim(),
   };
+
+  // ----- Editando um lançamento existente -----
+  if (editingId) {
+    const id = editingId;
+    if (CLOUD_MODE) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Salvando…';
+      const ok = await updateTransactionRemote(id, payload);
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+      if (!ok) { showFormError('Não foi possível salvar as alterações. Veja o aviso no topo da página.'); return; }
+      closeModal();
+      await loadTransactions();
+    } else {
+      transactions = transactions.map(t => t.id === id ? { ...t, ...payload } : t);
+      closeModal();
+      renderAll();
+    }
+    ensureRowVisible(id);
+    highlightRow(id);
+    return;
+  }
 
   state.period = { year: 'all', month: 'all', week: 'all' };
   state.typeFilter = 'all';
@@ -989,27 +1069,43 @@ document.getElementById('tableBody').addEventListener('click', async (e) => {
     if (noteRow) noteRow.classList.toggle('hidden');
     return;
   }
-  const delBtn = e.target.closest('[data-action="delete"]');
-  if (delBtn) {
-    const id = delBtn.dataset.id;
-    if (CLOUD_MODE) {
-      delBtn.disabled = true;
-      const ok = await deleteTransactionRemote(id);
-      if (!ok) { delBtn.disabled = false; return; }
-      await loadTransactions();
-    } else {
-      transactions = transactions.filter(t => t.id !== id);
-      renderAll();
-    }
+  const editBtn = e.target.closest('[data-action="edit"]');
+  if (editBtn) {
+    const tx = transactions.find(t => String(t.id) === editBtn.dataset.id);
+    if (tx) openModal(tx);
   }
 });
 
-document.getElementById('fabBtn').addEventListener('click', openModal);
+document.getElementById('fabBtn').addEventListener('click', () => openModal());
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 document.getElementById('modalBackdrop').addEventListener('click', closeModal);
 document.getElementById('btnTipoEntrada').addEventListener('click', () => setModalType('entrada'));
 document.getElementById('btnTipoSaida').addEventListener('click', () => setModalType('saida'));
+document.getElementById('deleteTriggerBtn').addEventListener('click', () => {
+  document.getElementById('deleteTriggerBtn').classList.add('hidden');
+  document.getElementById('deleteConfirm').classList.remove('hidden');
+});
+document.getElementById('deleteCancelBtn').addEventListener('click', resetDeleteConfirm);
+document.getElementById('deleteConfirmBtn').addEventListener('click', async () => {
+  const id = editingId;
+  if (!id) return;
+  const btn = document.getElementById('deleteConfirmBtn');
+  if (CLOUD_MODE) {
+    btn.disabled = true;
+    btn.textContent = 'Excluindo…';
+    const ok = await deleteTransactionRemote(id);
+    btn.disabled = false;
+    btn.textContent = 'Sim, excluir';
+    if (!ok) { showFormError('Não foi possível excluir. Veja o aviso no topo da página.'); return; }
+    closeModal();
+    await loadTransactions();
+  } else {
+    transactions = transactions.filter(t => String(t.id) !== String(id));
+    closeModal();
+    renderAll();
+  }
+});
 document.getElementById('fieldDate').addEventListener('input', updateFormState);
 document.getElementById('fieldDate').addEventListener('change', updateFormState);
 document.addEventListener('keydown', (e) => {
