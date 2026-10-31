@@ -1,26 +1,33 @@
-  tailwind.config = {
+tailwind.config = {
     theme: {
       extend: {
         colors: {
-          ink: '#1F2430',
-          muted: '#6B7280',
-          canvas: '#F5F4F1',
-          sidebar: '#1B2331',
-          sidebarhover: '#28324A',
-          gold: '#B98B4E',
-          goldlight: '#F1E4CD',
-          gain: '#2E7D57',
-          gainbg: '#E7F3EC',
-          loss: '#B5453F',
+          ink: '#12232B',          // texto principal
+          muted: '#5B6F78',        // texto de apoio
+          canvas: '#F3F6F7',       // fundo da página
+          line: '#DCE5E9',         // bordas dos painéis
+          linesoft: '#E6EDF0',     // divisórias internas
+          sidebar: '#0F4C5C',      // menu lateral (petróleo)
+          sidebarhover: '#15616F',
+          gold: '#0F4C5C',         // cor de ação (mantém o nome usado no código)
+          goldlight: '#E3F3F6',
+          gain: '#0B7285',         // ganhos (ciano de texto)
+          gainbg: '#E3F3F6',
+          cyan: '#14B5C9',         // ciano vivo: barras e destaques
+          spend: '#4A5D66',        // gastos (cinza-azulado de texto)
+          spendbg: '#EDF1F3',
+          spendbar: '#9AAAB3',     // gastos nas barras
+          loss: '#B5453F',         // só erros e exclusão
           lossbg: '#FBEAE9',
+          alert: '#FCD34D',        // faixa de conferência
         },
         fontFamily: {
-          display: ['Sora', 'sans-serif'],
-          sans: ['Inter', 'sans-serif'],
+          display: ['IBM Plex Sans', 'sans-serif'],
+          sans: ['IBM Plex Sans', 'sans-serif'],
         },
         boxShadow: {
-          card: '0 1px 2px rgba(31,36,48,0.04), 0 8px 24px -8px rgba(31,36,48,0.10)',
-          fab: '0 8px 20px -4px rgba(185,139,78,0.45)',
+          card: 'none',
+          fab: '0 6px 16px -4px rgba(15,76,92,0.45)',
         }
       }
     }
