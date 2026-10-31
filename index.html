@@ -6,7 +6,8 @@
 <title>Fluxo de Caixa | Painel Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.85em%22 font-size=%2290%22>💰</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="js/tailwind-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -14,7 +15,7 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="bg-canvas text-ink antialiased">
-
+ 
 <!-- ============ AUTH SCREEN (login / cadastro) ============ -->
 <div id="authScreen" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-canvas">
   <div class="w-full max-w-sm">
@@ -23,29 +24,29 @@
       <p class="font-display font-semibold text-lg leading-tight">Fluxo de Caixa</p>
       <p class="text-xs text-muted mt-0.5">Painel Financeiro Pessoal</p>
     </div>
-
-    <div class="bg-white rounded-2xl shadow-card p-6">
-      <div id="authTabs" class="flex gap-1 bg-[#F0EFEC] rounded-xl p-1 mb-3">
+ 
+    <div class="bg-white rounded-xl p-6">
+      <div id="authTabs" class="flex gap-1 bg-canvas rounded-xl p-1 mb-3">
         <button type="button" data-mode="login" class="auth-tab-btn flex-1 py-2 rounded-lg text-sm font-semibold transition-colors">Entrar</button>
         <button type="button" data-mode="signup" class="auth-tab-btn flex-1 py-2 rounded-lg text-sm font-semibold transition-colors">Criar conta</button>
       </div>
       <p id="authFirstRunNote" class="hidden text-xs text-muted text-center mb-5">Crie a primeira conta para começar a usar o Fluxo de Caixa.</p>
-
+ 
       <div id="authError" class="hidden mb-4 rounded-xl border border-loss/30 bg-lossbg text-loss px-3.5 py-2.5 text-xs"></div>
       <div id="authSuccess" class="hidden mb-4 rounded-xl border border-gold/30 bg-goldlight text-[#7A5A2E] px-3.5 py-2.5 text-xs"></div>
-
+ 
       <form id="authForm" class="space-y-4">
         <div id="authNameField" class="hidden">
           <label for="authName" class="block text-xs font-medium text-muted mb-1.5">Nome</label>
-          <input type="text" id="authName" placeholder="Seu nome" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="text" id="authName" placeholder="Seu nome" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
         <div>
           <label for="authEmail" class="block text-xs font-medium text-muted mb-1.5">E-mail</label>
-          <input type="email" id="authEmail" required placeholder="voce@exemplo.com" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="email" id="authEmail" required placeholder="voce@exemplo.com" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
         <div>
           <label for="authPassword" class="block text-xs font-medium text-muted mb-1.5">Senha</label>
-          <input type="password" id="authPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="password" id="authPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
         <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-gold hover:brightness-95 transition-all">Entrar</button>
       </form>
@@ -53,325 +54,316 @@
     <p class="text-xs text-muted text-center mt-4">Cada conta tem seu próprio caixa — seus lançamentos e categorias ficam visíveis só para você.</p>
   </div>
 </div>
-
+ 
 <!-- ============ APP (oculto até autenticar) ============ -->
 <div id="appShell" class="hidden">
-
+ 
 <div class="flex h-screen w-full overflow-hidden">
-
-  <!-- ============ SIDEBAR ============ -->
+ 
+  <!-- ============ MENU LATERAL ============ -->
   <div id="sidebarOverlay" class="hidden fixed inset-0 bg-black/40 z-40 lg:hidden"></div>
-
-  <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-72 shrink-0 bg-sidebar text-slate-300 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
-    <div class="flex items-center gap-3 px-6 h-20 shrink-0 border-b border-white/10">
-      <div class="w-10 h-10 rounded-xl bg-gold flex items-center justify-center font-display font-bold text-white text-sm shrink-0">FC</div>
-      <div class="min-w-0">
-        <p class="font-display font-semibold text-white text-sm leading-tight truncate">Fluxo de Caixa</p>
-        <p class="text-xs text-slate-400 truncate">Painel Financeiro Pessoal</p>
-      </div>
-      <button id="closeSidebarBtn" class="ml-auto lg:hidden text-slate-400 hover:text-white p-1" aria-label="Fechar menu">
+ 
+  <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-sidebar text-white/70 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+    <div class="flex items-center gap-3 px-5 h-16 shrink-0 border-b border-white/10">
+      <div class="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center font-semibold text-white text-sm shrink-0">FC</div>
+      <p class="font-semibold text-white text-sm leading-tight truncate">Fluxo de Caixa</p>
+      <button id="closeSidebarBtn" class="ml-auto lg:hidden text-white/60 hover:text-white p-1" aria-label="Fechar menu">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-
-    <nav class="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-      <p class="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Navegação</p>
-
-      <a href="#topo" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl bg-sidebarhover text-white text-sm font-medium">
-        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
-        </svg>
-        Painel
-      </a>
-      <a href="#tableSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
-        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/>
-        </svg>
+ 
+    <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <button type="button" data-view="inicio" class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>
+        Início
+      </button>
+      <button type="button" data-view="lancamentos" class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
         Lançamentos
-      </a>
-      <a href="#chartSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
-        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="20" x2="21" y2="20"/><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="7"/><line x1="18" y1="20" x2="18" y2="15"/>
-        </svg>
-        Relatórios
-      </a>
-      <a href="#configSection" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebarhover hover:text-white text-sm font-medium transition-colors">
-        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/>
-        </svg>
+      </button>
+      <button type="button" data-view="config" class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/></svg>
         Configurações
-      </a>
+      </button>
+ 
+      <div class="pt-3 mt-3 border-t border-white/10">
+        <button type="button" id="checkBalanceBtn" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/70 hover:bg-sidebarhover hover:text-white transition-colors">
+          <svg viewBox="0 0 24 24" class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8h9a3 3 0 0 1 0 6H5"/><path d="M19 16H10a3 3 0 0 1 0-6"/></svg>
+          <span class="flex-1 text-left">Conferir saldo</span>
+          <span id="balanceOk" class="hidden items-center text-[11px] font-semibold px-1.5 py-0.5 rounded bg-white/15 text-white whitespace-nowrap"></span>
+        </button>
+      </div>
     </nav>
-
+ 
     <div class="px-3 pb-3">
-      <button type="button" id="logoutBtn" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-sidebarhover hover:text-white transition-colors">
-        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
+      <button type="button" id="logoutBtn" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/70 hover:bg-sidebarhover hover:text-white transition-colors">
+        <svg viewBox="0 0 24 24" class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Sair
       </button>
     </div>
-
-    <div class="px-4 py-4 border-t border-white/10 flex items-center gap-3">
-      <div id="userAvatar" class="w-9 h-9 rounded-full bg-goldlight text-[#7A5A2E] flex items-center justify-center font-display font-semibold text-xs shrink-0">--</div>
+ 
+    <div class="px-4 py-3 border-t border-white/10 flex items-center gap-3">
+      <div id="userAvatar" class="w-8 h-8 rounded-full bg-white/15 text-white flex items-center justify-center font-semibold text-xs shrink-0">--</div>
       <div class="min-w-0">
         <p id="userName" class="text-sm font-medium text-white truncate">–</p>
-        <p id="userEmail" class="text-xs text-slate-500 truncate">–</p>
+        <p id="userEmail" class="text-xs text-white/50 truncate">–</p>
       </div>
     </div>
   </aside>
-
-  <!-- ============ MAIN ============ -->
+ 
+  <!-- ============ CONTEÚDO ============ -->
   <main class="flex-1 min-w-0 overflow-y-auto">
-
-    <!-- Top bar -->
-    <header class="sticky top-0 z-30 bg-canvas/90 backdrop-blur-sm border-b border-[#E7E5E0]">
-      <div class="flex items-center gap-4 px-5 lg:px-8 h-16">
+ 
+    <header class="sticky top-0 z-30 bg-canvas/95 backdrop-blur-sm border-b border-line">
+      <div class="flex items-center gap-3 px-5 lg:px-8 h-16">
         <button id="hamburgerBtn" class="lg:hidden text-ink p-1.5 -ml-1.5" aria-label="Abrir menu">
           <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div class="min-w-0">
-          <h1 id="headerGreeting" class="font-display font-semibold text-base leading-tight truncate">Olá</h1>
+          <h1 id="headerGreeting" class="font-semibold text-base leading-tight truncate">Olá</h1>
           <p id="headerSubtitle" class="text-xs text-muted truncate">Resumo do seu fluxo de caixa</p>
         </div>
-        <div class="ml-auto flex items-center gap-3 shrink-0">
-        <div id="syncIndicator" class="hidden items-center gap-1.5 text-xs text-muted shrink-0">
+        <div id="syncIndicator" class="hidden ml-auto items-center gap-1.5 text-xs text-muted shrink-0">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 spin" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/></svg>
           Sincronizando…
         </div>
-        <span id="balanceOk" class="hidden items-center gap-1 px-2.5 py-1 rounded-full bg-gainbg text-gain text-xs font-semibold whitespace-nowrap"></span>
-        <button type="button" id="checkBalanceBtn" class="px-3 py-1.5 rounded-xl border border-gold/40 text-gold hover:bg-goldlight text-xs font-semibold transition-colors whitespace-nowrap">Conferir<span class="hidden sm:inline">&nbsp;saldo</span></button>
-        </div>
       </div>
-
-      <!-- Faixa amarela da conferência de saldo: só some quando a diferença chega a zero -->
-      <div id="balanceBanner" class="hidden bg-amber-300 text-amber-950 border-b border-amber-400" role="alert">
+ 
+      <!-- Barra de período: Tudo/anos → meses → semanas -->
+      <div id="periodBar" class="px-5 lg:px-8 pb-2 -mt-0.5"></div>
+ 
+      <!-- Faixa da conferência de saldo -->
+      <div id="balanceBanner" class="hidden bg-alert text-[#4A3A05] border-t border-b border-[#E5B93B]" role="alert">
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 lg:px-8 py-2.5">
           <span class="text-lg leading-none" aria-hidden="true">⚠</span>
           <div class="min-w-[180px] flex-1">
             <p id="balanceBannerTitle" class="text-sm font-semibold leading-snug"></p>
             <p id="balanceBannerSub" class="text-xs opacity-80 leading-snug"></p>
           </div>
-          <button type="button" id="balanceSuspectsBtn" class="hidden shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-950 text-amber-50 hover:bg-amber-900 transition-colors">Ver suspeitos</button>
-          <button type="button" id="balanceRecheckBtn" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-950/10 hover:bg-amber-950/20 transition-colors">Conferir novamente</button>
+          <button type="button" id="balanceSuspectsBtn" class="hidden shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#4A3A05] text-alert hover:brightness-125 transition-all">Ver suspeitos</button>
+          <button type="button" id="balanceRecheckBtn" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-black/10 hover:bg-black/20 transition-colors">Conferir novamente</button>
         </div>
       </div>
     </header>
-
-    <div id="topo" class="px-5 lg:px-8 py-6 space-y-6 max-w-[1400px]">
-
-      <div id="connectionBanner" class="hidden rounded-xl border px-4 py-3 text-sm fade-in-up"></div>
-
-      <!-- KPI Cards -->
-      <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 fade-in-up">
-        <div class="bg-white rounded-2xl shadow-card p-5">
-          <div class="flex items-start justify-between">
-            <div>
-              <p class="text-sm font-medium text-muted">Ganhos</p>
-              <p id="kpiGanhosPeriod" class="text-xs text-gold font-medium mt-0.5">Todos os períodos</p>
-            </div>
-            <div class="w-9 h-9 rounded-full bg-gainbg text-gain flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16V8"/><path d="M8 12l4-4 4 4"/></svg>
-            </div>
-          </div>
-          <p id="kpiGanhosValue" class="font-display font-bold text-2xl mt-3 tabular text-gain">R$ 0,00</p>
-          <p id="kpiGanhosCount" class="text-xs text-muted mt-1">0 entrada(s)</p>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-card p-5">
-          <div class="flex items-start justify-between">
-            <div>
-              <p class="text-sm font-medium text-muted">Gastos</p>
-              <p id="kpiGastosPeriod" class="text-xs text-gold font-medium mt-0.5">Todos os períodos</p>
-            </div>
-            <div class="w-9 h-9 rounded-full bg-lossbg text-loss flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/><path d="M8 12l4 4 4-4"/></svg>
-            </div>
-          </div>
-          <p id="kpiGastosValue" class="font-display font-bold text-2xl mt-3 tabular text-loss">R$ 0,00</p>
-          <p id="kpiGastosCount" class="text-xs text-muted mt-1">0 saída(s)</p>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-card p-5">
-          <div class="flex items-start justify-between">
-            <div>
-              <p class="text-sm font-medium text-muted">Saldo</p>
-              <p id="kpiSaldoPeriod" class="text-xs text-gold font-medium mt-0.5">Todos os períodos</p>
-            </div>
-            <div class="w-9 h-9 rounded-full bg-goldlight text-[#7A5A2E] flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="17" cy="14" r="1.3" fill="currentColor" stroke="none"/></svg>
-            </div>
-          </div>
-          <p id="kpiSaldoValue" class="font-display font-bold text-2xl mt-3 tabular">R$ 0,00</p>
-          <p class="text-xs text-muted mt-1">Ganhos − Gastos do período</p>
-        </div>
-      </section>
-
-      <!-- Period selector + content -->
-      <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        <!-- Period selector -->
-        <div class="lg:col-span-3 fade-in-up">
-          <div class="bg-white rounded-2xl shadow-card p-4 lg:sticky lg:top-24">
-            <p class="text-xs font-semibold uppercase tracking-wider text-muted px-1 mb-2">Período</p>
-            <div id="periodBreadcrumb" class="flex flex-wrap items-center gap-0.5 px-1 mb-3 text-xs min-h-[16px]"></div>
-            <div id="periodList" class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0"></div>
-          </div>
-        </div>
-
-        <!-- Chart + Table -->
-        <div class="lg:col-span-9 space-y-6 min-w-0">
-
-          <!-- Chart card -->
-          <div id="chartSection" class="bg-white rounded-2xl shadow-card p-5 scroll-mt-24 fade-in-up">
-            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div>
-                <p class="font-display font-semibold text-sm">Visão gráfica</p>
-                <p class="text-xs text-muted mt-0.5">Explore por categoria ou pela evolução semanal</p>
+ 
+    <div id="topo" class="px-5 lg:px-8 py-5 pb-28 max-w-[1400px]">
+ 
+      <div id="connectionBanner" class="hidden rounded-lg border px-4 py-3 text-sm mb-5"></div>
+ 
+      <!-- ============================ INÍCIO ============================ -->
+      <section id="viewInicio" class="space-y-5">
+ 
+        <div class="bg-white border border-line rounded-xl">
+          <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-linesoft">
+            <div class="p-5">
+              <div class="flex items-center gap-2 text-muted">
+                <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+                <p class="text-sm font-medium">Ganhos</p>
               </div>
-              <div id="chartTabs" class="flex gap-1 bg-[#F0EFEC] rounded-xl p-1 shrink-0"></div>
+              <p id="kpiGanhosValue" class="font-semibold text-2xl mt-2 tabular text-gain">R$ 0,00</p>
+              <p id="kpiGanhosCount" class="text-xs text-muted mt-1">0 entrada(s)</p>
+              <p id="kpiGanhosPeriod" class="text-xs text-muted mt-0.5">Todos os períodos</p>
             </div>
-            <div class="relative h-72">
+ 
+            <div class="p-5">
+              <div class="flex items-center gap-2 text-muted">
+                <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 7 9 13 13 9 21 17"/><polyline points="15 17 21 17 21 11"/></svg>
+                <p class="text-sm font-medium">Gastos</p>
+              </div>
+              <p id="kpiGastosValue" class="font-semibold text-2xl mt-2 tabular text-spend">R$ 0,00</p>
+              <p id="kpiGastosCount" class="text-xs text-muted mt-1">0 saída(s)</p>
+              <p id="kpiGastosPeriod" class="text-xs text-muted mt-0.5">Todos os períodos</p>
+            </div>
+ 
+            <div class="p-5">
+              <div class="flex items-center gap-2 text-muted">
+                <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9.5a3 3 0 0 0-3-1.5c-1.7 0-3 .9-3 2s1.3 2 3 2 3 .9 3 2-1.3 2-3 2a3 3 0 0 1-3-1.5"/><path d="M12 6.5v11"/></svg>
+                <p class="text-sm font-medium">Saldo</p>
+              </div>
+              <p id="kpiSaldoValue" class="font-semibold text-2xl mt-2 tabular">R$ 0,00</p>
+              <p class="text-xs text-muted mt-1">Ganhos − Gastos do período</p>
+              <p id="kpiSaldoPeriod" class="text-xs text-muted mt-0.5">Todos os períodos</p>
+            </div>
+          </div>
+        </div>
+ 
+        <div id="chartSection" class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="bg-white border border-line rounded-xl p-5 min-w-0">
+            <p class="font-semibold text-sm">Gastos por categoria</p>
+            <p id="donutSubtitle" class="text-xs text-muted mt-0.5">Todos os períodos</p>
+            <div class="relative h-64 mt-4">
               <canvas id="mainChart"></canvas>
               <div id="chartEmptyState" class="hidden absolute inset-0 flex items-center justify-center text-sm text-muted text-center px-6">
                 Nenhum gasto registrado neste período.
               </div>
             </div>
+            <div id="donutLegend" class="mt-4 space-y-1.5"></div>
           </div>
-
-          <!-- Table card -->
-          <div id="tableSection" class="bg-white rounded-2xl shadow-card p-5 scroll-mt-24 fade-in-up">
-            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div>
-                <p class="font-display font-semibold text-sm">Lançamentos</p>
-                <p id="tableCount" class="text-xs text-muted mt-0.5">0 lançamentos</p>
+ 
+          <div class="bg-white border border-line rounded-xl p-5 min-w-0">
+            <p class="font-semibold text-sm">Evolução</p>
+            <p id="barsSubtitle" class="text-xs text-muted mt-0.5">Ganhos, gastos e saldo acumulado</p>
+            <div class="relative h-64 mt-4">
+              <canvas id="barsChart"></canvas>
+              <div id="barsEmptyState" class="hidden absolute inset-0 flex items-center justify-center text-sm text-muted text-center px-6">
+                Nenhum lançamento neste período.
               </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-4 mt-4 text-xs text-muted">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-cyan"></span>Ganhos</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-spendbar"></span>Gastos</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 rounded-full bg-gain"></span>Saldo acumulado</span>
+            </div>
+          </div>
+        </div>
+      </section>
+ 
+      <!-- ========================= LANÇAMENTOS ========================= -->
+      <section id="viewLancamentos" class="hidden">
+        <div id="tableSection" class="bg-white border border-line rounded-xl p-5">
+          <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+              <p class="font-semibold text-sm">Lançamentos</p>
+              <p id="tableCount" class="text-xs text-muted mt-0.5">0 lançamentos</p>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+              <div id="pillsContainer" class="flex gap-1.5 shrink-0"></div>
+              <div class="relative w-full sm:w-64">
+                <svg viewBox="0 0 24 24" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/></svg>
+                <input type="text" id="searchInput" autocomplete="off" aria-label="Pesquisar lançamentos" placeholder="Pesquisar nome, valor ou dia" class="w-full pl-9 pr-8 py-2 rounded-lg border border-line bg-white text-xs focus-visible:ring-2 focus-visible:ring-gold/30" />
+                <button type="button" id="searchClearBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink p-0.5" aria-label="Limpar pesquisa">
+                  <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+ 
+          <div id="searchSummary" class="hidden flex-wrap items-center justify-between gap-2 mb-3 px-3.5 py-2 rounded-lg bg-goldlight text-xs text-ink"></div>
+ 
+          <!-- Computador: tabela -->
+          <div class="hidden sm:block overflow-x-auto -mx-5 px-5">
+            <table class="w-full min-w-[680px] border-collapse">
+              <thead>
+                <tr class="text-left text-xs font-medium text-muted border-b border-linesoft">
+                  <th class="px-4 py-2.5 font-medium">Data</th>
+                  <th class="px-4 py-2.5 font-medium">Descrição</th>
+                  <th class="px-4 py-2.5 font-medium">Categoria</th>
+                  <th class="px-4 py-2.5 font-medium">Tipo</th>
+                  <th class="px-4 py-2.5 font-medium">Valor</th>
+                  <th class="px-4 py-2.5 font-medium">Semana</th>
+                  <th class="px-4 py-2.5 font-medium text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+ 
+          <!-- Celular: blocos de duas linhas -->
+          <div id="cardList" class="sm:hidden divide-y divide-linesoft -mx-1"></div>
+        </div>
+      </section>
+ 
+      <!-- ======================== CONFIGURAÇÕES ======================== -->
+      <section id="viewConfig" class="hidden">
+        <div id="configSection" class="bg-white border border-line rounded-xl p-5">
+          <div class="mb-4">
+            <p class="font-semibold text-sm">Categorias</p>
+            <p class="text-xs text-muted mt-0.5">Adicione ou remova categorias para organizar melhor seus lançamentos</p>
+          </div>
+ 
+          <form id="categoryForm" class="mb-5">
+            <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
+              <div class="flex-1">
+                <label for="categoryName" class="block text-xs font-medium text-muted mb-1.5">Nova categoria</label>
+                <input type="text" id="categoryName" required placeholder="Ex.: Pets" maxlength="40" class="w-full px-3.5 py-2.5 rounded-lg border border-line text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
+              </div>
+              <button type="submit" id="categorySubmitBtn" class="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-gold hover:brightness-110 transition-all shrink-0">Adicionar</button>
+            </div>
+            <div class="mt-3">
+              <p class="text-xs font-medium text-muted mb-2">Cor</p>
               <div class="flex flex-wrap items-center gap-2">
-                <div id="pillsContainer" class="flex flex-wrap gap-2"></div>
-                <div class="relative w-full sm:w-64">
-                  <svg viewBox="0 0 24 24" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/></svg>
-                  <input type="text" id="searchInput" autocomplete="off" aria-label="Pesquisar lançamentos" placeholder="Pesquisar nome, valor ou dia" class="w-full pl-9 pr-8 py-2 rounded-full border border-[#E7E5E0] bg-white text-xs focus-visible:ring-2 focus-visible:ring-gold/40" />
-                  <button type="button" id="searchClearBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink p-0.5" aria-label="Limpar pesquisa">
-                    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
+                <div id="colorSwatches" class="flex flex-wrap gap-2"></div>
+                <label class="flex items-center gap-1.5 text-xs text-muted cursor-pointer ml-1">
+                  <input type="color" id="categoryColor" value="#0F4C5C" class="h-8 w-10 rounded-lg border border-line cursor-pointer" />
+                  outra cor
+                </label>
               </div>
             </div>
-
-            <div id="searchSummary" class="hidden flex-wrap items-center justify-between gap-2 mb-3 px-3.5 py-2 rounded-xl bg-[#FAF7F0] text-xs text-ink"></div>
-
-            <div class="overflow-x-auto -mx-5 px-5">
-              <table class="w-full min-w-[720px] border-collapse">
-                <thead>
-                  <tr class="text-left text-xs font-semibold uppercase tracking-wider text-muted border-b border-[#EEECE7]">
-                    <th class="px-4 py-3 font-semibold">Data</th>
-                    <th class="px-4 py-3 font-semibold">Descrição</th>
-                    <th class="px-4 py-3 font-semibold">Categoria</th>
-                    <th class="px-4 py-3 font-semibold">Tipo</th>
-                    <th class="px-4 py-3 font-semibold">Valor</th>
-                    <th class="px-4 py-3 font-semibold">Semana</th>
-                    <th class="px-4 py-3 font-semibold text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-              </table>
-            </div>
-          </div>
-
+          </form>
+ 
+          <div id="categoryEmptyState" class="hidden text-sm text-muted text-center py-6">Nenhuma categoria ainda. Adicione a primeira acima.</div>
+          <div id="categoryList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+          <p id="dataScopeNote" class="text-xs text-muted mt-4"></p>
         </div>
       </section>
-
-      <!-- Configurações -->
-      <section id="configSection" class="bg-white rounded-2xl shadow-card p-5 scroll-mt-24 fade-in-up">
-        <div class="mb-4">
-          <p class="font-display font-semibold text-sm">Configurações</p>
-          <p class="text-xs text-muted mt-0.5">Adicione ou remova categorias para organizar melhor seus lançamentos</p>
-        </div>
-
-        <form id="categoryForm" class="flex flex-col sm:flex-row gap-3 sm:items-end mb-5">
-          <div class="flex-1">
-            <label for="categoryName" class="block text-xs font-medium text-muted mb-1.5">Nova categoria</label>
-            <input type="text" id="categoryName" required placeholder="Ex.: Pets" maxlength="40" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
-          </div>
-          <div>
-            <label for="categoryColor" class="block text-xs font-medium text-muted mb-1.5">Cor</label>
-            <input type="color" id="categoryColor" value="#6B7280" class="h-[42px] w-16 rounded-xl border border-[#E7E5E0] cursor-pointer" />
-          </div>
-          <button type="submit" id="categorySubmitBtn" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gold hover:brightness-95 transition-all shrink-0">Adicionar</button>
-        </form>
-
-        <div id="categoryEmptyState" class="hidden text-sm text-muted text-center py-6">Nenhuma categoria cadastrada ainda.</div>
-        <div id="categoryList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
-      </section>
-
-      <p id="dataScopeNote" class="text-xs text-muted text-center pb-4"></p>
+ 
     </div>
+ 
+    <button id="fabBtn" class="fixed bottom-5 right-5 lg:bottom-8 lg:right-8 w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-gold text-white shadow-fab flex items-center justify-center hover:brightness-110 transition-all z-30" aria-label="Novo lançamento">
+      <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+ 
   </main>
 </div>
-
-<!-- ============ FAB ============ -->
-<button id="fabBtn" class="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 z-40 w-14 h-14 rounded-full bg-gold text-white flex items-center justify-center shadow-fab hover:scale-105 active:scale-95 transition-transform" aria-label="Adicionar lançamento">
-  <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-</button>
-
+ 
 <!-- ============ MODAL ============ -->
 <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
   <div id="modalBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-  <div class="modal-panel relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-200">
+  <div class="modal-panel relative bg-white rounded-xl shadow-xl w-full max-w-md p-6 scale-95 opacity-0 transition-all duration-200">
     <div class="flex items-center justify-between mb-5">
       <h2 id="modalTitle" class="font-display font-semibold text-lg">Novo lançamento</h2>
       <button id="modalCloseBtn" class="text-muted hover:text-ink p-1" aria-label="Fechar">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-
+ 
     <form id="transactionForm" class="space-y-4">
       <div class="grid grid-cols-2 gap-3">
         <button type="button" id="btnTipoEntrada" class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors border">Entrada</button>
         <button type="button" id="btnTipoSaida" class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors border">Saída</button>
       </div>
-
+ 
       <div>
         <label for="fieldDescription" class="block text-xs font-medium text-muted mb-1.5">Descrição</label>
-        <input type="text" id="fieldDescription" required placeholder="Ex.: Projeto freelance" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        <input type="text" id="fieldDescription" required placeholder="Ex.: Projeto freelance" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
       </div>
-
+ 
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label for="fieldDate" class="block text-xs font-medium text-muted mb-1.5">Data</label>
-          <input type="date" id="fieldDate" required class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="date" id="fieldDate" required class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
         <div>
           <label for="fieldValue" class="block text-xs font-medium text-muted mb-1.5">Valor (R$)</label>
-          <input type="text" inputmode="numeric" autocomplete="off" id="fieldValue" required placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="text" inputmode="numeric" autocomplete="off" id="fieldValue" required placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
       </div>
-
+ 
       <p id="dateLong" class="text-xs text-muted -mt-2 min-h-[1rem]"></p>
-
+ 
       <div>
         <label for="fieldCategory" class="block text-xs font-medium text-muted mb-1.5">Categoria</label>
-        <select id="fieldCategory" required class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm bg-white focus-visible:ring-2 focus-visible:ring-gold/40"></select>
+        <select id="fieldCategory" required class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm bg-white focus-visible:ring-2 focus-visible:ring-gold/30"></select>
       </div>
-
+ 
       <div>
         <label for="fieldNotes" class="block text-xs font-medium text-muted mb-1.5">Observação <span class="text-muted/70 font-normal">(opcional)</span></label>
-        <textarea id="fieldNotes" rows="2" placeholder="Detalhes adicionais sobre este lançamento" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm resize-none focus-visible:ring-2 focus-visible:ring-gold/40"></textarea>
+        <textarea id="fieldNotes" rows="2" placeholder="Detalhes adicionais sobre este lançamento" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm resize-none focus-visible:ring-2 focus-visible:ring-gold/30"></textarea>
       </div>
-
+ 
       <p id="formPending" class="text-xs text-muted text-center min-h-[1rem]"></p>
       <div class="flex gap-3 pt-2">
-        <button type="button" id="modalCancelBtn" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted bg-[#F0EFEC] hover:bg-[#E7E5E0] transition-colors">Cancelar</button>
+        <button type="button" id="modalCancelBtn" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted bg-canvas hover:bg-[#DCE5E9] transition-colors">Cancelar</button>
         <button type="submit" id="modalSubmitBtn" disabled class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Salvar lançamento</button>
       </div>
-
+ 
       <!-- Área de exclusão: só aparece ao editar um lançamento -->
       <div id="deleteArea" class="hidden pt-1">
         <button type="button" id="deleteTriggerBtn" class="w-full py-2 rounded-xl text-sm font-semibold text-loss hover:bg-lossbg transition-colors">Excluir lançamento</button>
         <div id="deleteConfirm" class="hidden rounded-xl bg-lossbg p-3">
           <p class="text-sm text-loss font-medium mb-3">Excluir este lançamento? Essa ação não pode ser desfeita.</p>
           <div class="flex gap-3">
-            <button type="button" id="deleteCancelBtn" class="flex-1 py-2 rounded-xl text-sm font-semibold text-muted bg-white hover:bg-[#F0EFEC] transition-colors">Voltar</button>
+            <button type="button" id="deleteCancelBtn" class="flex-1 py-2 rounded-xl text-sm font-semibold text-muted bg-white hover:bg-canvas transition-colors">Voltar</button>
             <button type="button" id="deleteConfirmBtn" class="flex-1 py-2 rounded-xl text-sm font-semibold text-white bg-loss hover:brightness-95 transition-all">Sim, excluir</button>
           </div>
         </div>
@@ -379,11 +371,11 @@
     </form>
   </div>
 </div>
-
+ 
 <!-- ============ MODAL: CONFERIR SALDO ============ -->
 <div id="balanceModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
   <div id="balanceBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-  <div class="modal-panel relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto scale-95 opacity-0 transition-all duration-200">
+  <div class="modal-panel relative bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto scale-95 opacity-0 transition-all duration-200">
     <div class="flex items-center justify-between mb-2">
       <h2 class="font-display font-semibold text-lg">Conferir saldo</h2>
       <button type="button" id="balanceCloseBtn" class="text-muted hover:text-ink p-1" aria-label="Fechar">
@@ -391,31 +383,31 @@
       </button>
     </div>
     <p class="text-sm text-muted mb-4">Digite o saldo que aparece agora na sua conta do banco. O app compara com a soma de todos os lançamentos, de todos os períodos.</p>
-
+ 
     <form id="balanceForm" class="space-y-4">
-      <p id="balanceSiteLine" class="text-sm text-ink bg-[#FAF9F7] rounded-xl px-3.5 py-2.5"></p>
+      <p id="balanceSiteLine" class="text-sm text-ink bg-[#F3F6F7] rounded-xl px-3.5 py-2.5"></p>
       <div>
         <label for="fieldBankBalance" class="block text-xs font-medium text-muted mb-1.5">Saldo no banco (R$)</label>
-        <input type="text" inputmode="numeric" autocomplete="off" id="fieldBankBalance" required placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+        <input type="text" inputmode="numeric" autocomplete="off" id="fieldBankBalance" required placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
       </div>
       <p id="balanceMsg" class="text-xs text-muted min-h-[1rem]"></p>
       <div class="flex gap-3 pt-2">
-        <button type="button" id="balanceCancelBtn" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted bg-[#F0EFEC] hover:bg-[#E7E5E0] transition-colors">Cancelar</button>
+        <button type="button" id="balanceCancelBtn" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted bg-canvas hover:bg-[#DCE5E9] transition-colors">Cancelar</button>
         <button type="submit" id="balanceSubmitBtn" disabled class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Conferir</button>
       </div>
     </form>
-
-    <details id="dayCheck" class="mt-5 pt-4 border-t border-[#EEECE7]">
+ 
+    <details id="dayCheck" class="mt-5 pt-4 border-t border-[#E6EDF0]">
       <summary class="text-sm font-semibold cursor-pointer select-none">Conferir por dia <span class="font-normal text-muted">(achar onde o erro começou)</span></summary>
       <p class="text-xs text-muted mt-2 mb-3">Escolha uma data e digite o saldo que o extrato do banco mostra no fim desse dia. O app compara com a soma dos lançamentos até essa data. É só uma consulta, não grava nada.</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label for="dayDate" class="block text-xs font-medium text-muted mb-1.5">Data</label>
-          <input type="date" id="dayDate" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="date" id="dayDate" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
         <div>
           <label for="dayBank" class="block text-xs font-medium text-muted mb-1.5">Saldo no fim do dia (R$)</label>
-          <input type="text" inputmode="numeric" autocomplete="off" id="dayBank" placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E7E5E0] text-sm focus-visible:ring-2 focus-visible:ring-gold/40" />
+          <input type="text" inputmode="numeric" autocomplete="off" id="dayBank" placeholder="R$ 0,00" class="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE5E9] text-sm focus-visible:ring-2 focus-visible:ring-gold/30" />
         </div>
       </div>
       <button type="button" id="dayCompareBtn" disabled class="mt-3 w-full py-2 rounded-xl text-sm font-semibold text-white/80 bg-[#C9C6BE] cursor-not-allowed transition-all">Comparar neste dia</button>
@@ -423,9 +415,9 @@
     </details>
   </div>
 </div>
-
+ 
 </div><!-- /#appShell -->
-
+ 
 <script src="js/app.js"></script>
 </body>
 </html>
